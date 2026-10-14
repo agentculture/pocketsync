@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-10-15
+
+### Added
+
+- Pocket source adapter for the official public API (pk_ key), with live-verified response mapping and X-Ratelimit throttling
+- Signed webhook receiver for pocketsync.culture.dev/hooks/pocket (HMAC verify, 5 MB limit, fast ack, dedupe)
+- Mongo sink for a dedicated pocketsync-mongo (mongodb-atlas-local): idempotent upserts, CAS enrichment, tombstones, sync state
+- Local file sink with atomic audio download; landing engine, reconciler and backfill
+- Enrichment worker: transcript chunking, gemma2-embed vectors and lobes-decider type labels; vector-search index manager
+- Handoff events via an events.jsonl outbox and events-cli QoS 1 publish
+- CLI verbs auth, list, sync, watch, serve, status, reembed and new doctor checks
+- Deploy: atlas-local compose, systemd serve unit, cloudflared connector and runbooks; opt-in atlas-local integration tests
+- Spec, plan, split and delivery summary for pocket-to-mongodb-near-realtime
+
+### Changed
+
+- API premise in the harness prompt files and README: official API + webhooks replace the reverse-engineered Firebase path
+- Optional extras pocketsync[mongo] and pocketsync[events]; offline socket guard in tests; mongodb:// rule in scan-secrets
+
 ## [0.10.1] - 2026-10-14
 
 ### Changed
