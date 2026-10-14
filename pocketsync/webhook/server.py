@@ -112,6 +112,9 @@ class _Handler(BaseHTTPRequestHandler):
             self._reply(200, "duplicate")
             return
         ctx.state.set_last_webhook_at(datetime.fromtimestamp(ctx.clock(), timezone.utc).isoformat())
+        # The dedupe key is consumed above, before the enqueue. That is safe only because the
+        # queue is unbounded: if it were bounded, a Full here would 503 and Pocket's retry
+        # would then be dropped as a duplicate (only the reconciler would recover it).
         try:
             ctx.queue.put_nowait((event.recording_id, event.event_type, event.payload))
         except queue_mod.Full:

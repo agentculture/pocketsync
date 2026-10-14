@@ -7,6 +7,7 @@ Wire shapes are partly undocumented, so mapping is defensive and the full wire d
 from __future__ import annotations
 
 import json
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -172,6 +173,8 @@ class PocketHttpSource:
         self._sleep = sleep
         self._clock = clock
         self._max_throttle = max_throttle
+        # serve shares one source between the landing consumer and the reconciler.
+        self._throttle_lock = threading.Lock()
         self._throttle_until: float | None = None
 
     def __repr__(self) -> str:  # never expose the key
@@ -185,13 +188,22 @@ class PocketHttpSource:
         """
         remaining = _header_float(headers, "X-Ratelimit-Remaining")
         reset = _header_float(headers, "X-Ratelimit-Reset")
-        self._throttle_until = reset if remaining is not None and remaining <= 0 else None
+        with self._throttle_lock:
+            self._throttle_until = reset if remaining is not None and remaining <= 0 else None
+
+    def _note_throttled(self, headers: Any) -> None:
+        """A 429 means the window is exhausted: wait out its reset before the next request."""
+        reset = _header_float(headers, "X-Ratelimit-Reset")
+        if reset is not None:
+            with self._throttle_lock:
+                self._throttle_until = reset
 
     def _await_window(self) -> None:
-        if self._throttle_until is None:
+        with self._throttle_lock:
+            until, self._throttle_until = self._throttle_until, None
+        if until is None:
             return
-        wait = min(self._max_throttle, self._throttle_until - self._clock())
-        self._throttle_until = None
+        wait = min(self._max_throttle, until - self._clock())
         if wait > 0:
             self._sleep(wait)
 
@@ -208,6 +220,8 @@ class PocketHttpSource:
                 body = resp.read()
                 self._note_rate_limit(getattr(resp, "headers", None))
         except urllib.error.HTTPError as exc:
+            if exc.code == 429:
+                self._note_throttled(exc.headers)
             self._raise_http(exc, self._clock())
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise CliError(

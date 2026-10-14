@@ -24,6 +24,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - API premise in the harness prompt files and README: official API + webhooks replace the reverse-engineered Firebase path
 - Optional extras pocketsync[mongo] and pocketsync[events]; offline socket guard in tests; mongodb:// rule in scan-secrets
 
+### Fixed
+
+- Pocket client: a hard 429 now arms the rate-limit throttle for the next request, and the throttle state is lock-guarded (it is shared by serve's landing and reconcile threads)
+
 ## [0.10.1] - 2026-10-14
 
 ### Changed

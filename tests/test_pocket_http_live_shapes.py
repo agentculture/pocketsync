@@ -148,3 +148,28 @@ def test_429_without_retry_after_uses_ratelimit_reset():
         with pytest.raises(RateLimited) as ei:
             src.list_recordings(limit=1)
     assert ei.value.retry_after == pytest.approx(45.0, abs=1.0)
+
+
+def test_429_arms_the_throttle_for_the_next_request():
+    # colleague review e008e4e84cb3 (a): a hard 429 must also arm the proactive throttle,
+    # otherwise the next call fires immediately and draws another 429.
+    slept: list[float] = []
+    src = PocketHttpSource("pk_test", sleep=slept.append, clock=lambda: 1000.0)
+    err = urllib.error.HTTPError("u", 429, "x", {"X-Ratelimit-Reset": "1040"}, io.BytesIO(b"{}"))
+    with mock.patch(TARGET, side_effect=[err, _page({})]):
+        with pytest.raises(RateLimited):
+            src.list_recordings(limit=1)
+        assert slept == []
+        src.list_recordings(limit=1)
+    assert slept == [pytest.approx(40.0, abs=1.0)]
+
+
+def test_non_429_error_does_not_arm_the_throttle():
+    slept: list[float] = []
+    src = PocketHttpSource("pk_test", sleep=slept.append, clock=lambda: 1000.0)
+    err = urllib.error.HTTPError("u", 500, "x", {"X-Ratelimit-Reset": "1040"}, io.BytesIO(b"{}"))
+    with mock.patch(TARGET, side_effect=[err, _page({})]):
+        with pytest.raises(Exception):
+            src.list_recordings(limit=1)
+        src.list_recordings(limit=1)
+    assert slept == []
