@@ -18,19 +18,20 @@ from pocketsync.cli._errors import EXIT_ENV_ERROR, CliError
 DEFAULT_GATEWAY_URL = "http://localhost:8001/v1"
 DEFAULT_FILES_ROOT = "~/.local/share/pocketsync/files"
 
-# setting name -> environment variable
-ENV_VARS = {
-    "api_key": "POCKETSYNC_API_KEY",
-    "webhook_secret": "POCKETSYNC_WEBHOOK_SECRET",  # nosec B105 - env var name
-    "gateway_api_key": "POCKETSYNC_GATEWAY_API_KEY",
-    "mongo_uri": "POCKETSYNC_MONGO_URI",
-    "files_root": "POCKETSYNC_FILES_ROOT",
-    "gateway_url": "POCKETSYNC_GATEWAY_URL",
-    "webhook_port": "POCKETSYNC_WEBHOOK_PORT",
-    "reconcile_interval": "POCKETSYNC_RECONCILE_INTERVAL",
-    "enrichment_concurrency": "POCKETSYNC_ENRICHMENT_CONCURRENCY",
-    "taxonomy_path": "POCKETSYNC_TAXONOMY_PATH",
-}
+# setting name -> environment variable: always POCKETSYNC_<NAME>
+_SETTING_NAMES = (
+    "api_key",
+    "webhook_secret",
+    "gateway_api_key",
+    "mongo_uri",
+    "files_root",
+    "gateway_url",
+    "webhook_port",
+    "reconcile_interval",
+    "enrichment_concurrency",
+    "taxonomy_path",
+)
+ENV_VARS = {name: f"POCKETSYNC_{name.upper()}" for name in _SETTING_NAMES}
 CONFIG_PATH_ENV = "POCKETSYNC_CONFIG"
 _INT_FIELDS = {"webhook_port", "reconcile_interval", "enrichment_concurrency"}
 
