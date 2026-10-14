@@ -361,6 +361,15 @@ def test_synthetic_loopback_creds_allowed_only_under_tests() -> None:
     assert scan_secrets._scan_mongo_uris("tests/test_x.py", "mongodb://u:p@db.example.com/\n")
 
 
+def test_devague_ledger_may_quote_synthetic_loopback_test_ids() -> None:
+    """``.devague/`` evidence records quote pytest node ids, which embed test params."""
+    line = '"test": "tests/x.py::test_bad[mongodb://admin:hunter2hunter2@localhost:27017/db]"\n'
+    assert scan_secrets._scan_mongo_uris(".devague/deliveries/plan.json", line) == []
+    # a credentialed non-loopback URI in the ledger is still a finding
+    remote = '"note": "mongodb://u:p@db.example.com/"\n'
+    assert scan_secrets._scan_mongo_uris(".devague/deliveries/plan.json", remote)
+
+
 def test_mongo_uri_in_any_file_type_fails_the_cli(tmp_path: Path) -> None:
     planted = tmp_path / "notes.md"
     planted.write_text("uri: mongodb+srv://u:pw@cluster0.abcde.mongodb.net/\n", encoding="utf-8")

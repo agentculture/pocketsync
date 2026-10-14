@@ -24,8 +24,9 @@ links don't trip it:
    127.0.0.1 / ::1 / the ``pocketsync-mongo`` compose service name. Userinfo
    that is an obvious placeholder is allowed: angle brackets
    (``user:<password>``), ``$VAR`` / ``${VAR}`` references, or written-out
-   placeholder words. Files under ``tests/`` may carry synthetic userinfo on a
-   loopback host (fixtures), never a non-loopback host. Findings never echo the
+   placeholder words. Files under ``tests/`` (fixtures) and ``.devague/`` (the ledger,
+   which quotes pytest node ids) may carry synthetic userinfo on a loopback host, never a
+   non-loopback host. Findings never echo the
    URI, so a real password cannot leak through scanner output.
 
 Usage:
@@ -247,6 +248,7 @@ def _scan_endpoints(path: str, text: str) -> list[Finding]:
 _MONGO_URI_RE = re.compile(r"mongodb(?:\+srv)?://(?P<rest>[^\s\"'`]*)")
 _MONGO_ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1", "pocketsync-mongo"}
 _MONGO_LOOPBACK = {"localhost", "127.0.0.1", "::1"}
+SYNTHETIC_URI_PREFIXES = ("tests/", ".devague/")
 _REF_RE = re.compile(r"^(?:\$\{?[A-Za-z_]\w*\}?|<[^<>]*>)$")
 
 
@@ -271,7 +273,9 @@ def _mongo_hosts(hostlist: str) -> list[str]:
 
 def _scan_mongo_uris(path: str, text: str) -> list[Finding]:
     findings: list[Finding] = []
-    synthetic_ok = path.replace("\\", "/").startswith("tests/")
+    # tests/ fixtures and the .devague/ ledger (which quotes pytest node ids, params
+    # included) may carry synthetic userinfo on a loopback host -- never a remote one.
+    synthetic_ok = path.replace("\\", "/").startswith(SYNTHETIC_URI_PREFIXES)
     for lineno, line in enumerate(text.splitlines(), start=1):
         for match in _MONGO_URI_RE.finditer(line):
             authority = re.split(r"[/?#]", match.group("rest"), maxsplit=1)[0]
