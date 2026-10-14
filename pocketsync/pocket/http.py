@@ -7,9 +7,11 @@ Wire shapes are partly undocumented, so mapping is defensive and the full wire d
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from typing import Any
 
 from pocketsync.cli._errors import EXIT_ENV_ERROR, EXIT_USER_ERROR, CliError
@@ -18,6 +20,7 @@ from pocketsync.pocket.base import MAX_PAGE_LIMIT, RateLimited, RecordingPage
 
 BASE_URL = "https://public.heypocketai.com/api/v1/public"
 DEFAULT_TIMEOUT = 30.0
+MAX_THROTTLE_SECONDS = 120.0
 
 
 def _as_str_list(value: Any) -> list[str]:
@@ -71,8 +74,8 @@ def _find_action_items(summ: Any) -> list[Any]:
         return []
     for key in ("actionItems", "action_items"):
         val = summ.get(key)
-        if isinstance(val, dict):
-            val = val.get("items")
+        if isinstance(val, dict):  # live API: v2.actionItems.actions (verified 2026-10-14)
+            val = val.get("actions") or val.get("items")
         if isinstance(val, list) and val:
             return val
     for value in summ.values():
@@ -88,9 +91,14 @@ def _map_action_item(item: Any) -> ActionItem:
         return ActionItem(text=item)
     if not isinstance(item, dict):
         return ActionItem(text=str(item))
-    text = item.get("text") or item.get("title") or item.get("description") or ""
-    done = item.get("done", item.get("completed", False))
-    return ActionItem(text=str(text), done=bool(done), owner=item.get("owner"))
+    text = (
+        item.get("label") or item.get("text") or item.get("title") or item.get("description") or ""
+    )
+    done = item.get(
+        "isCompleted", item.get("is_completed", item.get("done", item.get("completed")))
+    )
+    owner = item.get("assignee") or item.get("owner")
+    return ActionItem(text=str(text), done=bool(done), owner=owner)
 
 
 def _map_segments(transcript: Any) -> list[TranscriptSegment]:
@@ -124,8 +132,8 @@ def _map_recording(wire: dict[str, Any]) -> Recording:
     )
 
 
-def _retry_after(headers: Any) -> float | None:
-    raw = headers.get("Retry-After") if headers is not None else None
+def _header_float(headers: Any, name: str) -> float | None:
+    raw = headers.get(name) if headers is not None else None
     if raw is None:
         return None
     try:
@@ -134,22 +142,61 @@ def _retry_after(headers: Any) -> float | None:
         return None
 
 
+def _retry_after(headers: Any, now: float) -> float | None:
+    """Retry-After if present, else seconds until ``X-Ratelimit-Reset`` (unix epoch)."""
+    explicit = _header_float(headers, "Retry-After")
+    if explicit is not None:
+        return explicit
+    reset = _header_float(headers, "X-Ratelimit-Reset")
+    return None if reset is None else max(0.0, reset - now)
+
+
 class PocketHttpSource:
     """:class:`~pocketsync.pocket.base.PocketSource` backed by Pocket's public HTTP API."""
 
     def __init__(
-        self, api_key: str, base_url: str = BASE_URL, timeout: float = DEFAULT_TIMEOUT
+        self,
+        api_key: str,
+        base_url: str = BASE_URL,
+        timeout: float = DEFAULT_TIMEOUT,
+        *,
+        sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.time,
+        max_throttle: float = MAX_THROTTLE_SECONDS,
     ) -> None:
         if not base_url.startswith(("https://", "http://localhost", "http://127.0.0.1")):
             raise CliError(EXIT_USER_ERROR, "Pocket base URL must be https", "Use an https URL.")
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+        self._sleep = sleep
+        self._clock = clock
+        self._max_throttle = max_throttle
+        self._throttle_until: float | None = None
 
     def __repr__(self) -> str:  # never expose the key
         return f"PocketHttpSource(base_url={self._base_url!r})"
 
+    def _note_rate_limit(self, headers: Any) -> None:
+        """Pocket sends X-Ratelimit-{Limit,Remaining,Reset} (~50/min, verified 2026-10-14).
+
+        When the window is exhausted, the NEXT request waits until the reset instead of
+        drawing a 429.
+        """
+        remaining = _header_float(headers, "X-Ratelimit-Remaining")
+        reset = _header_float(headers, "X-Ratelimit-Reset")
+        self._throttle_until = reset if remaining is not None and remaining <= 0 else None
+
+    def _await_window(self) -> None:
+        if self._throttle_until is None:
+            return
+        wait = min(self._max_throttle, self._throttle_until - self._clock())
+        self._throttle_until = None
+        if wait > 0:
+            self._sleep(wait)
+
     def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        self._await_window()
         query = urllib.parse.urlencode({k: v for k, v in (params or {}).items() if v is not None})
         url = f"{self._base_url}{path}" + (f"?{query}" if query else "")
         req = urllib.request.Request(  # noqa: S310
@@ -159,8 +206,9 @@ class PocketHttpSource:
         try:
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # nosec B310
                 body = resp.read()
+                self._note_rate_limit(getattr(resp, "headers", None))
         except urllib.error.HTTPError as exc:
-            self._raise_http(exc)
+            self._raise_http(exc, self._clock())
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise CliError(
                 EXIT_ENV_ERROR, f"Pocket request failed: {exc}", "Check connectivity; retry."
@@ -173,7 +221,7 @@ class PocketHttpSource:
             ) from exc
 
     @staticmethod
-    def _raise_http(exc: urllib.error.HTTPError) -> None:
+    def _raise_http(exc: urllib.error.HTTPError, now: float = 0.0) -> None:
         detail = ""
         try:
             payload = json.loads(exc.read() or b"{}")
@@ -183,7 +231,7 @@ class PocketHttpSource:
             pass
         suffix = f": {detail}" if detail else ""
         if exc.code == 429:
-            raise RateLimited(_retry_after(exc.headers)) from exc
+            raise RateLimited(_retry_after(exc.headers, now)) from exc
         if exc.code in (401, 403):
             raise CliError(
                 EXIT_USER_ERROR,
@@ -262,8 +310,13 @@ class PocketHttpSource:
             self._get(f"/recordings/{rid}/audio-url", {"expires_in": expires_in})
         )
         data = payload.get("data")
-        if isinstance(data, dict):  # shape undocumented: accept {url|audio_url|download_url}
-            data = data.get("url") or data.get("audio_url") or data.get("download_url")
+        if isinstance(data, dict):  # live API: {signed_url, expires_in, expires_at}
+            data = (
+                data.get("signed_url")
+                or data.get("url")
+                or data.get("audio_url")
+                or data.get("download_url")
+            )
         if not isinstance(data, str) or not data:
             raise CliError(EXIT_ENV_ERROR, "Pocket returned no audio URL", "Retry later.")
         return data
