@@ -1,0 +1,1173 @@
+{
+  "plan_slug": "pocket-to-mongodb-near-realtime",
+  "schema_version": 2,
+  "created": "2026-10-14T20:34:54Z",
+  "updated": "2026-10-14T21:12:07Z",
+  "deviations": [
+    {
+      "id": "d1",
+      "what": "Run t2 after t1 merges (add dependency t2 -> t1) instead of in wave 0",
+      "task_ref": "t2",
+      "reason": "t2's acceptance criterion 2 maps API responses to model.Recording, which t1 creates; building both in parallel would make t2 invent its own model.py and collide at merge",
+      "affects": [
+        "t1",
+        "t7"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "classification": "acceptable",
+      "seq": 1
+    },
+    {
+      "id": "d2",
+      "what": "Exclude Recording.raw from content_hash (hash the mapped content fields incl. updated_at only)",
+      "task_ref": "t1",
+      "reason": "t2 stores the full wire response in Recording.raw; any per-request volatile wire field (e.g. signed URLs) would change the hash every poll, making reconcile rewrite every doc and breaking c4/h11 and c40's 0-writes re-run; updated_at stays hashed so real Pocket edits are still detected",
+      "affects": [
+        "t2",
+        "c4",
+        "h11",
+        "c40"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "classification": "acceptable",
+      "seq": 2
+    },
+    {
+      "id": "d3",
+      "what": "pocketsync-mongo compose also pins hostname: pocketsync-mongo (beyond t3's criteria)",
+      "task_ref": "t3",
+      "reason": "atlas-local's single-node replica set records the container hostname in /data/db; without a fixed hostname a re-create comes up RSGhost/ReplicaSetNoPrimary (verified in a throwaway container), which would fail h25/c41",
+      "affects": [
+        "c30",
+        "h25",
+        "c41"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "classification": "acceptable",
+      "seq": 3
+    },
+    {
+      "id": "d4",
+      "what": "Fixer: correct t2's Pocket adapter mapping to the live API shapes and add X-Ratelimit header throttling",
+      "task_ref": "t2",
+      "reason": "Read-only live probe (2026-10-14) showed action items at v2.actionItems.actions and audio at data.signed_url (t2 guessed other keys: every action item dropped, every audio download failed) and a 50-requests-per-~60s limit with X-Ratelimit headers; fixed with synthetic-fixture tests in commit on feat/pocket-to-mongodb",
+      "affects": [
+        "t13",
+        "c28",
+        "c56"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "classification": "needs-follow-up",
+      "seq": 4
+    },
+    {
+      "id": "d5",
+      "what": "File the eidetic-cli migration issue (t20) before t19's operator acceptance",
+      "task_ref": "t20",
+      "reason": "atlas-local was validated against a real container by t17's integration test (4/4 incl. parentFilter), which is the evidence t20 cites; t19 waits on operator steps (issue #3), and the operator asked to open issues and continue",
+      "affects": [
+        "t19"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "classification": "acceptable",
+      "seq": 5
+    }
+  ],
+  "evidence": [
+    {
+      "id": "e1",
+      "obligation_ref": "o1",
+      "test_ref": "tests/test_sink_contract.py::test_put_then_state[local]",
+      "behavior_text": "contract test passes for local",
+      "contract_text": "h9: the mongo sink implements the same sink interface as local",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 6
+    },
+    {
+      "id": "e2",
+      "obligation_ref": "o1",
+      "test_ref": "tests/test_sink_contract.py::test_put_then_state[mongo]",
+      "behavior_text": "same contract test passes for mongo",
+      "contract_text": "h9: the mongo sink implements the same sink interface as local",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 7
+    },
+    {
+      "id": "e3",
+      "obligation_ref": "o2",
+      "test_ref": "tests/test_sink_mongo.py::test_import_without_pymongo",
+      "behavior_text": "imports succeed with pymongo blocked in sys.modules",
+      "contract_text": "h10: import pocketsync and the local sink work with pymongo uninstalled",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 8
+    },
+    {
+      "id": "e4",
+      "obligation_ref": "o3",
+      "test_ref": "tests/test_sink_mongo.py::test_identical_redelivery_is_noop",
+      "behavior_text": "doc byte-identical after re-delivery",
+      "contract_text": "h11: re-delivering an identical recording leaves hash and updated_at unchanged",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 9
+    },
+    {
+      "id": "e5",
+      "obligation_ref": "o4",
+      "test_ref": "tests/test_scan_secrets.py::test_bad_mongo_uri_is_flagged[mongodb://admin:hunter2hunter2@localhost:27017/db]",
+      "behavior_text": "scanner flags credentialed mongodb URIs",
+      "contract_text": "h12: no tracked file contains a mongodb:// URI with credentials or a non-localhost host",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 10
+    },
+    {
+      "id": "e6",
+      "obligation_ref": "o5",
+      "test_ref": "tests/test_events.py::test_append_schema_and_dedupe",
+      "behavior_text": "outbox line schema + (id, hash) dedupe",
+      "contract_text": "h13: exactly one event per new or changed recording",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 11
+    },
+    {
+      "id": "e7",
+      "obligation_ref": "o6",
+      "test_ref": "tests/test_webhook_verify.py::test_tampered_body",
+      "behavior_text": "tampered body fails HMAC",
+      "contract_text": "h15: bad or missing signature or stale timestamp -> 401, writes nothing",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 12
+    },
+    {
+      "id": "e8",
+      "obligation_ref": "o6",
+      "test_ref": "tests/test_webhook_verify.py::test_stale_ms_and_seconds",
+      "behavior_text": "stale timestamps rejected",
+      "contract_text": "h15: bad or missing signature or stale timestamp -> 401, writes nothing",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 13
+    },
+    {
+      "id": "e9",
+      "obligation_ref": "o6",
+      "test_ref": "tests/test_webhook_server.py::test_bad_signature_401_nothing_stored",
+      "behavior_text": "401 and nothing enqueued/stored",
+      "contract_text": "h15: bad or missing signature or stale timestamp -> 401, writes nothing",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 14
+    },
+    {
+      "id": "e10",
+      "obligation_ref": "o7",
+      "test_ref": "tests/test_reconcile.py::test_missed_webhook_counts_only_new_and_old_enough",
+      "behavior_text": "reconcile lands unseen recording and counts it missed",
+      "contract_text": "h16: a dropped webhook is recovered by the next reconcile pass",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 15
+    },
+    {
+      "id": "e11",
+      "obligation_ref": "o8",
+      "test_ref": "tests/test_pocket_http.py::test_protocol",
+      "behavior_text": "adapter implements only the official read protocol",
+      "contract_text": "h17: no code path calls production.heypocketai.com or reads browser tokens",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 16
+    },
+    {
+      "id": "e12",
+      "obligation_ref": "o9",
+      "test_ref": "tests/test_config.py::test_secrets_never_in_repr_or_str",
+      "behavior_text": "secrets absent from repr/str",
+      "contract_text": "h18: API key and webhook secret only from env/keyring/git-ignored config",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 17
+    },
+    {
+      "id": "e13",
+      "obligation_ref": "o9",
+      "test_ref": "tests/test_config.py::test_secret_not_in_error_message",
+      "behavior_text": "secrets absent from error messages",
+      "contract_text": "h18: API key and webhook secret only from env/keyring/git-ignored config",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 18
+    },
+    {
+      "id": "e14",
+      "obligation_ref": "o10",
+      "test_ref": "tests/test_webhook_server.py::test_binds_loopback_only",
+      "behavior_text": "non-loopback host refused",
+      "contract_text": "h19: the receiver binds 127.0.0.1 only (tunnel ingress not yet provisioned)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 19
+    },
+    {
+      "id": "e15",
+      "obligation_ref": "o11",
+      "test_ref": "tests/test_deploy_units.py::test_runbook_keeps_access_on_and_bypasses_only_the_exact_path",
+      "behavior_text": "runbook text asserts Access on + exact-path bypass",
+      "contract_text": "h20: live GET/POST behaviour at pocketsync.culture.dev NOT yet checkable (operator, issue #3)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 20
+    },
+    {
+      "id": "e16",
+      "obligation_ref": "o12",
+      "test_ref": "tests/test_gateway.py::test_embed_request_shape",
+      "behavior_text": "request body model gemma2-embed",
+      "contract_text": "h21: vector length 768 and model gemma2-embed",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 21
+    },
+    {
+      "id": "e17",
+      "obligation_ref": "o12",
+      "test_ref": "tests/test_gateway.py::test_embed_wrong_dims",
+      "behavior_text": "non-768 vectors rejected",
+      "contract_text": "h21: vector length 768 and model gemma2-embed",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 22
+    },
+    {
+      "id": "e18",
+      "obligation_ref": "o13",
+      "test_ref": "tests/test_chunking.py::test_over_8192_tokens_yields_multiple_chunks",
+      "behavior_text": "multiple chunks",
+      "contract_text": "h22: >8192-token transcript -> multiple chunks with segment time ranges",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 23
+    },
+    {
+      "id": "e19",
+      "obligation_ref": "o13",
+      "test_ref": "tests/test_chunking.py::test_times_and_segment_ranges_preserved",
+      "behavior_text": "segment times preserved",
+      "contract_text": "h22: >8192-token transcript -> multiple chunks with segment time ranges",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 24
+    },
+    {
+      "id": "e20",
+      "obligation_ref": "o14",
+      "test_ref": "tests/test_enrich_worker.py::test_503_then_200_stays_pending_with_backoff",
+      "behavior_text": "stays pending through 503, done after 200",
+      "contract_text": "h23: with the gateway returning 503 the recording still lands; status pending until success",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 25
+    },
+    {
+      "id": "e21",
+      "obligation_ref": "o14",
+      "test_ref": "tests/test_sync.py::test_landing_never_touches_enrichment_beyond_pending",
+      "behavior_text": "landing never calls the gateway",
+      "contract_text": "h23: with the gateway returning 503 the recording still lands; status pending until success",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 26
+    },
+    {
+      "id": "e22",
+      "obligation_ref": "o15",
+      "test_ref": "tests/test_sink_local.py::test_partial_download_leaves_no_final_file",
+      "behavior_text": "no final-named file after mid-stream failure",
+      "contract_text": "h24: audio hash matches doc; partial download leaves no final-named file",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 27
+    },
+    {
+      "id": "e23",
+      "obligation_ref": "o15",
+      "test_ref": "tests/test_sink_local.py::test_download_hashes_and_sizes",
+      "behavior_text": "sha256 computed while streaming",
+      "contract_text": "h24: audio hash matches doc; partial download leaves no final-named file",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 28
+    },
+    {
+      "id": "e24",
+      "obligation_ref": "o15",
+      "test_ref": "tests/test_pocket_http_live_shapes.py::test_audio_url_reads_signed_url",
+      "behavior_text": "live signed_url shape mapped",
+      "contract_text": "h24: audio hash matches doc; partial download leaves no final-named file",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 29
+    },
+    {
+      "id": "e25",
+      "obligation_ref": "o16",
+      "test_ref": "tests/test_mongo_deploy.py::test_bind_mounts_cover_db_configdb_and_mongot",
+      "behavior_text": "compose mounts db, configdb, mongot",
+      "contract_text": "h25: re-creating the container keeps all data (static check; live re-create on real stack pending, issue #3)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 30
+    },
+    {
+      "id": "e26",
+      "obligation_ref": "o16",
+      "test_ref": "tests/test_mongo_deploy.py::test_fixed_hostname_so_replset_survives_recreate",
+      "behavior_text": "hostname pinned",
+      "contract_text": "h25: re-creating the container keeps all data (static check; live re-create on real stack pending, issue #3)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 31
+    },
+    {
+      "id": "e27",
+      "obligation_ref": "o17",
+      "test_ref": "tests/test_reconcile.py::test_second_pass_no_changes_writes_nothing",
+      "behavior_text": "0 sink writes, no doc newly pending",
+      "contract_text": "h7: the 0-writes check runs in CI against the fake adapters",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 32
+    },
+    {
+      "id": "e28",
+      "obligation_ref": "o18",
+      "test_ref": "tests/test_cli_serve.py::test_service_runs_all_four_loops_and_stops_cleanly",
+      "behavior_text": "four loops + server start/stop",
+      "contract_text": "h26: one systemd user unit runs serve and restarts it on failure (unit not yet installed)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 33
+    },
+    {
+      "id": "e29",
+      "obligation_ref": "o18",
+      "test_ref": "tests/test_cli_serve.py::test_real_signal_stops_service_gracefully[15]",
+      "behavior_text": "child process exits 0 on SIGTERM",
+      "contract_text": "h26: one systemd user unit runs serve and restarts it on failure (unit not yet installed)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 34
+    },
+    {
+      "id": "e30",
+      "obligation_ref": "o18",
+      "test_ref": "tests/test_deploy_units.py::test_serve_unit_restarts_and_injects_all_secrets_via_grant",
+      "behavior_text": "user unit Restart=on-failure",
+      "contract_text": "h26: one systemd user unit runs serve and restarts it on failure (unit not yet installed)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 35
+    },
+    {
+      "id": "e31",
+      "obligation_ref": "o19",
+      "test_ref": "tests/test_state.py::test_mongo_state_survives_restart",
+      "behavior_text": "state persists across a fresh store",
+      "contract_text": "h27: restarting serve mid-run causes no duplicate doc writes or events",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 36
+    },
+    {
+      "id": "e32",
+      "obligation_ref": "o19",
+      "test_ref": "tests/test_state.py::test_dedupe[mongo]",
+      "behavior_text": "dedupe key rejects duplicates",
+      "contract_text": "h27: restarting serve mid-run causes no duplicate doc writes or events",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 37
+    },
+    {
+      "id": "e33",
+      "obligation_ref": "o20",
+      "test_ref": "tests/test_gateway.py::test_taxonomies_differ",
+      "behavior_text": "two taxonomies -> different bodies + version",
+      "contract_text": "h28: changing the taxonomy in config requires no code change",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 38
+    },
+    {
+      "id": "e34",
+      "obligation_ref": "o20",
+      "test_ref": "tests/test_enrich_worker.py::test_mark_for_reclassification",
+      "behavior_text": "version change marks docs pending",
+      "contract_text": "h28: changing the taxonomy in config requires no code change",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 39
+    },
+    {
+      "id": "e35",
+      "obligation_ref": "o21",
+      "test_ref": "tests/test_offline_guard.py::test_outbound_connect_is_blocked_fast",
+      "behavior_text": "non-loopback connect blocked",
+      "contract_text": "h29: the default test run makes no network calls",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 40
+    },
+    {
+      "id": "e36",
+      "obligation_ref": "o22",
+      "test_ref": "tests/test_cli_sync.py::test_dry_run_is_default_and_performs_zero_writes",
+      "behavior_text": "sync dry-run 0 writes",
+      "contract_text": "h30: a dry-run of each write verb performs 0 writes",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 41
+    },
+    {
+      "id": "e37",
+      "obligation_ref": "o22",
+      "test_ref": "tests/test_cli_status_reembed.py::test_reembed_dry_run_lists_ids_and_writes_nothing",
+      "behavior_text": "reembed dry-run 0 writes",
+      "contract_text": "h30: a dry-run of each write verb performs 0 writes",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 42
+    },
+    {
+      "id": "e38",
+      "obligation_ref": "o23",
+      "test_ref": "tests/test_enrich_worker.py::test_content_change_mid_enrichment_discards_and_requeues",
+      "behavior_text": "stale result discarded, no event",
+      "contract_text": "h31: an enrichment computed for an old content hash is never persisted",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 43
+    },
+    {
+      "id": "e39",
+      "obligation_ref": "o23",
+      "test_ref": "tests/test_sink_mongo.py::test_enrichment_race_content_changes_mid_flight",
+      "behavior_text": "CAS returns False, nothing written",
+      "contract_text": "h31: an enrichment computed for an old content hash is never persisted",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 44
+    },
+    {
+      "id": "e40",
+      "obligation_ref": "o24",
+      "test_ref": "tests/test_webhook_server.py::test_ack_latency_with_slow_consumer",
+      "behavior_text": "acks < 2 s with a 3 s consumer",
+      "contract_text": "h32: the HTTP response is sent before any outbound call",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 45
+    },
+    {
+      "id": "e41",
+      "obligation_ref": "o25",
+      "test_ref": "tests/test_sync.py::test_webhook_and_reconciler_paths_identical",
+      "behavior_text": "docs equal excluding landed_at/updated_at/files.meta",
+      "contract_text": "h33: the stored doc is identical whether via webhook or reconciler (meta.json synced_at excluded)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 46
+    },
+    {
+      "id": "e42",
+      "obligation_ref": "o26",
+      "test_ref": "tests/test_webhook_verify.py::test_verify_and_parse_never_parses_unverified",
+      "behavior_text": "parse never called on forged request",
+      "contract_text": "h34: no code path stores or processes a webhook body whose signature was not verified",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 47
+    },
+    {
+      "id": "e43",
+      "obligation_ref": "o26",
+      "test_ref": "tests/test_webhook_server.py::test_oversize_413_without_reading_body",
+      "behavior_text": "oversize refused before reading",
+      "contract_text": "h34: no code path stores or processes a webhook body whose signature was not verified",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 48
+    },
+    {
+      "id": "e44",
+      "obligation_ref": "o27",
+      "test_ref": "tests/test_pocket_http.py::test_protocol",
+      "behavior_text": "protocol has only read methods",
+      "contract_text": "h35: the Pocket adapter exposes no write methods",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 49
+    },
+    {
+      "id": "e45",
+      "obligation_ref": "o28",
+      "test_ref": "tests/test_cli_status_reembed.py::test_status_json_reports_every_health_field",
+      "behavior_text": "status reports last_webhook_at, webhook_missed, backlog, errors",
+      "contract_text": "h37: a broken webhook path becomes visible in status within one reconcile interval",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 50
+    },
+    {
+      "id": "e46",
+      "obligation_ref": "o28",
+      "test_ref": "tests/test_reconcile.py::test_missed_webhook_counts_only_new_and_old_enough",
+      "behavior_text": "missed counter increments",
+      "contract_text": "h37: a broken webhook path becomes visible in status within one reconcile interval",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 51
+    },
+    {
+      "id": "e47",
+      "obligation_ref": "o29",
+      "test_ref": "tests/test_events.py::test_broker_down_leaves_pending_then_publishes",
+      "behavior_text": "pending through outage, then published",
+      "contract_text": "h38: exactly one published event per content hash, even across broker outages",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 52
+    },
+    {
+      "id": "e48",
+      "obligation_ref": "o29",
+      "test_ref": "tests/test_events.py::test_drain_publishes_qos1_and_is_idempotent",
+      "behavior_text": "QoS 1, idempotent drain",
+      "contract_text": "h38: exactly one published event per content hash, even across broker outages",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 53
+    },
+    {
+      "id": "e49",
+      "obligation_ref": "o30",
+      "test_ref": "tests/test_reconcile.py::test_backfill_250_across_three_pages_with_one_429",
+      "behavior_text": "250 land across 3 pages with one 429",
+      "contract_text": "h39: the backfill completes without manual restarts and respects the concurrency cap",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 54
+    },
+    {
+      "id": "e50",
+      "obligation_ref": "o30",
+      "test_ref": "tests/test_enrich_worker.py::test_concurrency_cap",
+      "behavior_text": "enrichment concurrency never exceeds cap",
+      "contract_text": "h39: the backfill completes without manual restarts and respects the concurrency cap",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 55
+    },
+    {
+      "id": "e51",
+      "obligation_ref": "o30",
+      "test_ref": "tests/test_pocket_http_live_shapes.py::test_throttles_until_reset_when_remaining_is_zero",
+      "behavior_text": "adapter waits for X-Ratelimit reset",
+      "contract_text": "h39: the backfill completes without manual restarts and respects the concurrency cap",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 56
+    },
+    {
+      "id": "e52",
+      "obligation_ref": "o31",
+      "test_ref": "tests/test_vindex.py::test_dimension_change_fails_with_remediation",
+      "behavior_text": "dims change refused with remediation",
+      "contract_text": "h40: vectors from two different models or dimensions never coexist in one index",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 57
+    },
+    {
+      "id": "e53",
+      "obligation_ref": "o31",
+      "test_ref": "tests/test_vindex.py::test_stored_doc_mismatch_fails_and_plan_lists_ids",
+      "behavior_text": "stored-doc mismatch refused",
+      "contract_text": "h40: vectors from two different models or dimensions never coexist in one index",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "behavioral test ran green at 1c84600",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 58
+    },
+    {
+      "id": "e54",
+      "obligation_ref": "o32",
+      "test_ref": "scripts/harness-smoke.py --stage config",
+      "behavior_text": "6 config checks passed, 0 failed",
+      "contract_text": "h14: CLAUDE.md, AGENTS.override.md, .pi/SYSTEM.md, AGENTS.colleague.md and QWEN.md describe the official API + webhooks, and harness probes still pass",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "harness-smoke config stage ran green at 1c84600 (live LLM probes not run)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T21:10:01",
+        "commit": "1c84600"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 59
+    },
+    {
+      "id": "e55",
+      "obligation_ref": "o33",
+      "test_ref": "tests/integration/test_atlas_local.py (POCKETSYNC_IT_MONGO=1, throwaway atlas-local 8.0.34)",
+      "behavior_text": "summary search with label filter, nested chunk search, parentFilter-filtered chunk search, idempotent index: 4/4 pass",
+      "contract_text": "c38 clause: queryable with $vectorSearch plus type filters (the full after-state on a real synced recording is NOT yet checked \u2014 issue #3)",
+      "evidence_type": "integration",
+      "strength": "execution",
+      "strength_basis": "integration suite ran green against a real container at 7a6e3f7",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-14T20:30:00",
+        "commit": "7a6e3f7"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 60
+    }
+  ],
+  "deltas": [
+    {
+      "id": "b1",
+      "kind": "amended",
+      "behavior_text": "recording-level filters on the nestedRoot chunk index are expressed as $vectorSearch.parentFilter (filter silently matches nothing)",
+      "caused_by": [
+        "c38"
+      ],
+      "evidence_refs": [],
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false
+    },
+    {
+      "id": "b2",
+      "kind": "amended",
+      "behavior_text": "Pocket adapter maps live API shapes (v2.actionItems.actions label/isCompleted/assignee, data.signed_url) and throttles on X-Ratelimit-Remaining=0 until reset; 429 delay derived from X-Ratelimit-Reset (pending deviation d4)",
+      "caused_by": [
+        "c28",
+        "c56"
+      ],
+      "evidence_refs": [
+        "e24",
+        "e51"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false
+    },
+    {
+      "id": "b3",
+      "kind": "added",
+      "behavior_text": "pocketsync-mongo compose pins hostname so a re-created replica set comes up PRIMARY (pending deviation d3)",
+      "caused_by": [
+        "c30"
+      ],
+      "evidence_refs": [
+        "e26"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false
+    }
+  ],
+  "supersessions": []
+}

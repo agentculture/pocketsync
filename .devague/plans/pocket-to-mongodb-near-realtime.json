@@ -5,7 +5,7 @@
   "schema_version": 5,
   "status": "exported",
   "created": "2026-10-14T20:28:56Z",
-  "updated": "2026-10-14T20:31:46Z",
+  "updated": "2026-10-14T21:07:05Z",
   "targets": [
     {
       "id": "c1",
@@ -1001,8 +1001,8 @@
       "text": "Pocket rate limits are undocumented (v1); the reconciler interval and backfill pacing may need tuning after a live probe with a real pk_ key",
       "kind": "unknown_nonblocking",
       "task_id": "t13",
-      "resolved": false,
-      "resolution": ""
+      "resolved": true,
+      "resolution": "Measured 2026-10-14: X-Ratelimit-Limit 50 per ~60 s window with Remaining/Reset headers; adapter now throttles on Remaining=0 and maps 429 delay from Reset"
     },
     {
       "id": "r2",
@@ -1059,6 +1059,14 @@
       "task_id": "t18",
       "resolved": false,
       "resolution": ""
+    },
+    {
+      "id": "r9",
+      "text": "Atlas vectorSearch over chunk vectors nested in the recording doc (c20) relies on the 'nestedRoot' index option; MongoDB's vector-search-type docs contradict themselves on arrays of documents. t17's opt-in atlas-local integration test must prove it; fallback (a chunks collection) would need a /deviate",
+      "kind": "unknown_nonblocking",
+      "task_id": "t9",
+      "resolved": true,
+      "resolution": "Verified on atlas-local 8.0.34: nestedRoot chunk index works; root-level filters go in parentFilter (tests/integration pass 4/4)"
     }
   ],
   "obligations": []
