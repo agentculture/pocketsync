@@ -100,3 +100,45 @@ def test_import_without_events_cli():
     )
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd="/tmp")
     assert r.returncode == 0, r.stderr
+
+
+class ConnectingClient(FakeClient):
+    """is_connected turns True after ``polls`` reads (simulates async connect)."""
+
+    def __init__(self, polls):
+        super().__init__()
+        self.polls, self.reads, self.waits = polls, 0, []
+
+    @property
+    def is_connected(self):
+        self.reads += 1
+        return self.reads > self.polls if self.polls is not None else False
+
+    def publish_event(self, envelope, topic, *, qos=1, retain=False, wait=0.0):
+        self.waits.append(wait)
+        return super().publish_event(envelope, topic, qos=qos, wait=wait)
+
+
+def test_drain_waits_for_connection_then_publishes(tmp_path):
+    _emit(Outbox(tmp_path))
+    client = ConnectingClient(polls=3)
+    s = OutboxPublisher(tmp_path, client, _factory, sleep=lambda _: None).drain()
+    assert (s.published, s.pending, s.error) == (1, 0, None)
+    assert client.reads > 3 and client.calls[0][2] == 1 and client.waits[0] > 0
+
+
+def test_never_connects_times_out_pending_with_error(tmp_path):
+    _emit(Outbox(tmp_path))
+    now = [0.0]
+
+    def sleep(d):
+        now[0] += d
+
+    client = ConnectingClient(polls=None)
+    pub = OutboxPublisher(
+        tmp_path, client, _factory, connect_timeout=0.1, clock=lambda: now[0], sleep=sleep
+    )
+    s = pub.drain()
+    assert (s.published, s.pending) == (0, 1)
+    assert s.error and "not connected" in s.error and not client.calls
+    assert OutboxPublisher(tmp_path, FakeClient(), _factory).drain().published == 1

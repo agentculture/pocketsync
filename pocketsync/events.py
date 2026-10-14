@@ -35,6 +35,19 @@ a successful publish. A failed publish stops the drain and leaves the rest
 pending for the next drain. Delivery is at-least-once; consumers dedupe on the
 envelope ``id``, which equals ``event_id``.
 
+Delivery guarantees and limits. Delivery is at-least-once: a crash between a
+broker publish and the sidecar update re-publishes that event on the next
+drain, so consumers must dedupe on the envelope ``id``. The outbox is
+single-writer: two processes appending at once could both pass the dedupe
+check, so run one sync writer per files root.
+
+Before publishing, the publisher waits (bounded, ``connect_timeout`` seconds,
+default 5) for the client to report ``is_connected``, because ``EventClient``
+connects asynchronously and a publish issued straight after construction
+reports ``no_conn``. A timeout counts as broker-down: everything stays pending
+and ``DrainSummary.error`` is set. Each publish also passes ``wait`` so the
+broker's acknowledgement is confirmed before the offset advances.
+
 ``events-cli`` is an optional extra (``pocketsync[events]``) and is imported
 lazily, only when a publish is attempted without an injected client.
 """
@@ -43,6 +56,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -173,11 +187,31 @@ class OutboxPublisher:
         root: str | os.PathLike[str],
         client: Any = None,
         envelope_factory: Callable[[Mapping[str, Any]], tuple[Any, str]] | None = None,
+        *,
+        connect_timeout: float = 5.0,
+        delivery_wait: float = 5.0,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.path = Path(root) / OUTBOX_NAME
         self.offset_path = Path(str(self.path) + PUBLISHED_SUFFIX)
         self._client = client
         self._factory = envelope_factory
+        self._connect_timeout = connect_timeout
+        self._delivery_wait = delivery_wait
+        self._clock = clock
+        self._sleep = sleep
+
+    def _await_connection(self, client: Any) -> bool:
+        """Wait up to ``connect_timeout`` for ``client.is_connected``."""
+        if not hasattr(client, "is_connected"):
+            return True
+        deadline = self._clock() + self._connect_timeout
+        while not client.is_connected:
+            if self._clock() >= deadline:
+                return False
+            self._sleep(0.02)
+        return True
 
     def _offset(self) -> int:
         try:
@@ -204,10 +238,12 @@ class OutboxPublisher:
         try:
             if client is None:
                 client = _default_client()
+            if not self._await_connection(client):
+                raise TimeoutError(f"broker not connected after {self._connect_timeout}s")
             factory = self._factory or _default_envelope
             for _, end, event in todo:
                 envelope, topic = factory(event)
-                result = client.publish_event(envelope, topic, qos=QOS)
+                result = client.publish_event(envelope, topic, qos=QOS, wait=self._delivery_wait)
                 if not getattr(result, "ok", False):
                     error = f"publish refused: {getattr(result, 'reason', 'unknown')}"
                     break
