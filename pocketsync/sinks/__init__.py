@@ -1,1 +1,1 @@
-"""Sinks: where synced recordings land (local disk now; Mongo in t8)."""
+"""Sinks: where synced recordings land (local disk and MongoDB)."""

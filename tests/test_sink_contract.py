@@ -3,13 +3,19 @@ the ``sink`` fixture in its own conftest); the tests below must pass for every b
 
 from __future__ import annotations
 
+import mongomock
 import pytest
 
+from pocketsync.cli._errors import CliError
 from pocketsync.model import Recording, TranscriptSegment
 from pocketsync.sinks.base import Sink
 from pocketsync.sinks.local import LocalSink
+from pocketsync.sinks.mongo import MongoSink
 
-SINK_FACTORIES = {"local": lambda tmp_path: LocalSink(tmp_path / "files")}
+SINK_FACTORIES = {
+    "local": lambda tmp_path: LocalSink(tmp_path / "files"),
+    "mongo": lambda tmp_path: MongoSink(mongomock.MongoClient()["pocketsync"]),
+}
 
 
 @pytest.fixture(params=sorted(SINK_FACTORIES))
@@ -65,3 +71,10 @@ def test_tombstone_and_merge(sink):
     sink.mark_merged("c2", "c1", "2026-06-02T00:00:00Z")
     assert sink.get_state("c2").merged_into == "c1"
     assert sink.get_state("c2").content_hash == rec("c2").content_hash()
+
+
+def test_tombstone_unknown_raises(sink):
+    with pytest.raises(CliError):
+        sink.tombstone("missing", "2026-06-01T00:00:00Z")
+    with pytest.raises(CliError):
+        sink.mark_merged("missing", "c1", "2026-06-01T00:00:00Z")
