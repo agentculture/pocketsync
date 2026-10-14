@@ -7,98 +7,115 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `pocketsync` is the **sync bridge for the Pocket AI voice recorder**
 (<https://heypocket.com>). Pocket records audio and produces speech-to-text
 transcripts, summaries and action items in **its own cloud**. pocketsync pulls
-that data out into a store we own — **local disk** and/or **S3** (or any
-S3-compatible bucket) — and stops there.
-
-That landing zone is the whole lane. Fan-out to Notion, the mesh, email,
-eidetic memory and so on is the job of
+that data out into stores we own: **local disk**, **S3** (or any
+S3-compatible bucket) and a dedicated **MongoDB** (`pocketsync-mongo`),
+kept near-realtime. It then enriches each recording and emits one handoff
+event. Routing onward to Notion, the mesh, email and so on is the job of
 [`culture-rules`](https://github.com/agentculture/culture-rules) workflows,
-which trigger on pocketsync's output. So the output layout and the event
-stream are a **public contract** other code builds against; treat changes to
-them like API changes.
+which trigger on pocketsync's events and read `pocketsync-mongo`. So the
+output layout, the mongo document shape and the event stream are a **public
+contract** other code builds against; treat changes to them like API changes.
 
-Non-goals (from the build brief): no re-running STT (Pocket's transcript is
-the source of truth; at most we store the audio), no routing to downstream
-destinations, no UI.
+Non-goals: no re-running STT (Pocket's transcript is the source of truth; we
+store the audio as files), no routing to downstream destinations, no UI.
 
-## Status — scaffold only, build brief is issue #1
+## Status — scaffold only, spec and plan exist
 
 As of the last update to this file, the repo is still the
 `culture-agent-template` scaffold renamed to `pocketsync`. **No Pocket, sink,
-sync or event code exists yet.** The only verbs on disk are the agent-first
-identity/introspection verbs (`whoami`, `learn`, `explain`, `overview`,
-`doctor`, `cli overview`).
+sync, webhook, mongo, enrichment or event code exists yet.** The only verbs on
+disk are the agent-first identity/introspection verbs (`whoami`, `learn`,
+`explain`, `overview`, `doctor`, `cli overview`). Everything under "Target
+architecture" below is *(planned)*; the build is in progress on branch
+`feat/pocket-to-mongodb`.
 
-[Issue #1](https://github.com/agentculture/pocketsync/issues/1) is the build
-brief and the requirements baseline. Read it before designing anything.
-`gh issue view 1` fails on the deprecated Projects-classic field, so use:
+The requirements baseline is the converged spec
+[`docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md`](docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md)
+and its build plan in `docs/plans/`. [Issue #1](https://github.com/agentculture/pocketsync/issues/1)
+is the original brief. `gh issue view 1` fails on the deprecated
+Projects-classic field, so use:
 
 ```bash
 gh issue view 1 --repo agentculture/pocketsync --json title,body,comments
 ```
 
-**Verify the API premise first.** guildmaster found no official Pocket
-developer API or bulk export. The only known path is a community skill that
-reads `app.heypocket.com` through a **reverse-engineered** API, authenticated
-with a **Firebase ID token** from a logged-in browser session. That token
-expires about every hour. The first deliverable in #1 is a report on:
+**The API premise (resolved by the spec).** Pocket has an **official public
+API**. It lives at `public.heypocketai.com/api/v1/public/*` and is authenticated
+with a static `Authorization: Bearer pk_...` key that the operator creates in
+the app under Settings → Developer → API Keys. Pocket also offers **personal
+webhooks**, signed with HMAC-SHA256 over `{timestamp}.{rawBody}` (headers
+`X-HeyPocket-Signature` and `X-HeyPocket-Timestamp`). Delivery is
+at-least-once, with a 30 s timeout and 3 attempts, so receivers must be
+idempotent.
 
-- any official API, webhook, integration (Zapier, Notion, …) or export;
-- whether a Firebase **refresh token** can be persisted so sync runs
-  unattended;
-- Terms-of-Service limits on automated access. Flag them; don't ignore them.
+**Superseded:** the earlier premise in this file and in issue #1, a
+reverse-engineered `app.heypocket.com` API authenticated with an hourly
+Firebase ID token, is **not used**. Pocket's Terms of Service bar automated
+access "for unauthorized purposes", and the official key makes that path
+unnecessary. Do not build a Firebase or refresh-token path.
 
-Prefer an official path, even a narrow one, if one exists.
+## Target architecture *(planned — per the spec)*
 
-For new feature work the vendored devague chain applies: `/scope` → `/think`
-→ `/challenge` (optional) → `/spec-to-plan` → `/assign-to-workforce` (or
-build directly).
+None of this exists yet. New code should slot into this shape rather than
+invent a parallel one.
 
-## Target architecture (planned — from #1, adjust once reality is verified)
-
-None of this exists yet. It's the shape the brief asks for, so new code should
-slot into it rather than invent a parallel one.
-
-- **Source adapter: Pocket**, behind an interface. List recordings since a
-  cursor. Fetch each recording's transcript (with speakers and timestamps if
-  available), summary, action items and metadata, plus the audio behind a
-  flag because it's large. The Pocket API is unofficial and *will* break, so
-  nothing outside the adapter may depend on its wire format. Tests use a
-  **fake Pocket adapter**.
-- **Sink adapters: `local` and `s3`**, behind one interface so more can be
-  added. Proposed per-recording layout:
+- **Source adapter: Pocket**, behind an interface, using the official API
+  with the `pk_` key. List recordings since a cursor (a backfill and
+  reconciliation path), and fetch each recording's transcript (with speakers
+  and timestamps), summary, action items and metadata, plus the audio. Nothing
+  outside the adapter may depend on Pocket's wire format. Tests use a **fake
+  Pocket adapter**.
+- **Webhook receiver** for near-realtime. Pocket's signed personal webhooks
+  are verified (HMAC-SHA256 over `{timestamp}.{rawBody}`) and handled
+  idempotently. The receiver is reachable at
+  `pocketsync.culture.dev/hooks/pocket` through a Cloudflare tunnel, with
+  Access on and an exact-path Bypass for that one route. Deletes arrive as
+  **tombstones**.
+- **Sink adapters: `local`, `s3` and `mongo`**, behind one interface so more
+  can be added. Proposed per-recording file layout for local/S3:
   `<root>/<YYYY>/<MM>/<recording-id>/{meta.json, transcript.json, transcript.md, summary.md, audio.*}`.
   Writes are **atomic, with `meta.json` written last**, so a reader that sees
   `meta.json` never sees a half-written recording. S3 uses the standard AWS
-  credential chain (env, profile or role) and no bespoke secret store. Tests
-  use a **fake S3** (moto or a stub).
+  credential chain. Tests use a **fake S3** (moto or a stub) and a fake Mongo.
+- **Mongo sink: `pocketsync-mongo`.** A dedicated container
+  (`mongodb/mongodb-atlas-local`) bound to `127.0.0.1:27019`, with data on host
+  bind mounts **outside the repo** so it survives container re-creation. One
+  document per recording holds metadata, speaker-attributed transcript
+  segments, summary, action items, the audio file path and hash, 768-d vectors
+  and type labels. Writes are idempotent upserts keyed by recording id and
+  content hash, and the store is queryable with `$vectorSearch` plus type
+  filters. Audio is saved as **files**, not in Mongo.
+- **Enrichment by pocketsync** through the lobes gateway: `gemma2-embed`
+  768-d vectors for transcript chunks and the summary, and type labels from the
+  lobes decider. Enrichment runs before the event is emitted.
 - **Incremental, idempotent sync.** Persisted cursor/state. A re-run with no
   remote changes is a no-op. Pocket may re-process a transcript or summary, so
   updates are detected by **content hash** and re-synced.
-- **Handoff contract: `events.jsonl`.** An append-only file in the sink root
-  with one event per new or updated recording, carrying the recording id, sink
-  paths, content hash and `created`/`updated`. A hook or MQTT publish via
-  [`events-cli`](https://github.com/agentculture/events-cli) is an optional
-  addition. The schema is documented in `README.md` and is what culture-rules
-  builds against. #1 also asks for one example culture-rules rule that
-  consumes it.
-- **CLI verbs**: `auth` (set up and verify credentials), `list` (remote
-  recordings plus sync status), `sync [--to local|s3] [--since …]
-  [--with-audio] [--apply]`, `watch` (poll loop or daemon), `status` (cursor,
-  last run, errors). **Write verbs are dry-run by default and commit only with
-  `--apply`**, and every verb takes `--json`.
+- **Handoff contract.** **One event per recording after enrichment**,
+  published via [`events-cli`](https://github.com/agentculture/events-cli)
+  at QoS 1, backed by an append-only `events.jsonl` **outbox** so no event is
+  lost if the broker is down. Each event carries the recording id, sink paths,
+  content hash and `created`/`updated`. The schema is documented in
+  `README.md` and is what culture-rules builds against.
+- **CLI verbs**: `auth` (set up and verify the `pk_` key), `list` (remote
+  recordings plus sync status), `sync [--to local|s3|mongo] [--since …]
+  [--with-audio] [--apply]`, `watch` (webhook receiver plus reconciliation
+  poll), `status` (cursor, last run, errors). **Write verbs are dry-run by
+  default and commit only with `--apply`**, and every verb takes `--json`.
 
-Runtime dependencies are currently **zero** (`dependencies = []`). A
-third-party client such as `boto3` should go behind an optional extra (for
-example `pocketsync[s3]`) and be imported lazily, so the core and the
-`local` sink stay dependency-free. Test-only libraries such as `moto` go in
-the `dev` dependency group.
+Runtime dependencies are currently **zero** (`dependencies = []`). Third-party
+clients go behind optional extras and are imported lazily, so the core and the
+`local` sink stay dependency-free: `boto3` behind `pocketsync[s3]`, `pymongo`
+behind `pocketsync[mongo]` *(planned)* and the events-cli client behind
+`pocketsync[events]` *(planned)*. Test-only libraries such as `moto` or
+`mongomock` go in the `dev` dependency group.
 
 ## Constraints that bite
 
 - **This repo is public.** Never commit tokens, recordings, transcripts, or
   fixtures derived from real recordings. Test fixtures are **synthetic**.
-  Credentials live in env vars, the keyring or a git-ignored config.
+  Credentials (the `pk_` API key, the webhook signing secret, Mongo and AWS
+  credentials) live in env vars, the keyring or a git-ignored config.
 - **`scripts/scan-secrets.py` runs in CI** (lint job). It flags token-shaped
   strings and secret-ish `key = value` assignments in any tracked file. It
   also flags **non-localhost URLs under `url`/`host`/`endpoint`/`baseUrl`

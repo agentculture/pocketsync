@@ -11,53 +11,63 @@ Qwen Code session.
 
 `pocketsync` is the **sync bridge for the Pocket AI voice recorder**
 (<https://heypocket.com>). It pulls recordings, speech-to-text transcripts,
-summaries and action items out of Pocket's cloud. It lands them in a store we
-own: **local disk** and/or **S3**. That landing zone is the whole lane.
+summaries and action items out of Pocket's cloud into stores we own: local
+disk, S3 and a dedicated MongoDB (`pocketsync-mongo`), kept near-realtime. It
+enriches each recording and emits one handoff event.
 [`culture-rules`](https://github.com/agentculture/culture-rules) workflows
-pick the data up from there and route it elsewhere, so the on-disk layout and
-the `events.jsonl` handoff stream are a public contract.
+route the data onward, so the on-disk layout, the mongo document shape and the
+event stream are a public contract.
 
-Non-goals: no re-running STT, no downstream routing, no UI.
+**Status: scaffold only.** The repo is still the `culture-agent-template`
+scaffold renamed to `pocketsync`. Everything below is *(planned)*, and none of
+that code exists yet; the build is in progress on branch
+`feat/pocket-to-mongodb`. The requirements baseline is the spec
+[`docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md`](docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md)
+(original brief: [issue #1](https://github.com/agentculture/pocketsync/issues/1)).
 
-## Status
+**API premise (resolved by the spec).** Pocket has an official public API at
+`public.heypocketai.com/api/v1/public/*`, authenticated with a static
+`Authorization: Bearer pk_...` key (app Settings, Developer, API Keys), plus
+personal webhooks signed with HMAC-SHA256 over `{timestamp}.{rawBody}`
+(`X-HeyPocket-Signature`, `X-HeyPocket-Timestamp`; at-least-once, 30 s
+timeout, 3 attempts). *Superseded:* the earlier reverse-engineered
+Firebase-token path is not used; Pocket's Terms of Service bar automated
+access "for unauthorized purposes".
 
-**Scaffold only.** The repo is the `culture-agent-template` scaffold renamed
-to `pocketsync`. The only CLI verbs on disk are the identity/introspection
-ones listed below. The sync engine, Pocket adapter, sinks and events are
-*(planned)*. The build brief is
-[issue #1](https://github.com/agentculture/pocketsync/issues/1). `gh issue
-view 1` errors on a deprecated field; use
+Planned shape *(planned)*:
+
+- A Pocket source adapter (official API) plus a signed-webhook receiver at
+  `pocketsync.culture.dev/hooks/pocket` (Cloudflare tunnel, Access on with an
+  exact-path Bypass); deletes arrive as tombstones.
+- `local`, `s3` and `mongo` sinks behind one interface. `pocketsync-mongo` is
+  a dedicated `mongodb/mongodb-atlas-local` container on `127.0.0.1:27019`
+  with host bind mounts outside the repo; audio is saved as files.
+- Enrichment by pocketsync via the lobes gateway: `gemma2-embed` 768-d vectors
+  and lobes decider type labels.
+- Idempotent, content-hash incremental sync; one event per recording after
+  enrichment via events-cli (QoS 1) with an `events.jsonl` outbox.
+- Optional extras `pocketsync[s3]`, `pocketsync[mongo]`, `pocketsync[events]`;
+  the core stays dependency-free.
+
+Non-goals: no re-running STT, no downstream routing, no UI. Planned verbs:
+`auth`, `list`, `sync`, `watch`, `status`; writes are dry-run by default,
+`--apply` commits, and every verb takes `--json`. `gh issue view 1` errors on
+a deprecated field; use
 `gh issue view 1 --repo agentculture/pocketsync --json title,body,comments`.
-
-The Pocket API premise is **unverified**. No official API has been found; the
-known path is a reverse-engineered `app.heypocket.com` API using a Firebase ID
-token that expires roughly hourly. Verifying API access, persistent auth and
-Terms of Service is the first deliverable.
-
-## Planned shape (from issue #1)
-
-- A **Pocket source adapter** behind an interface (the unofficial API will
-  break; nothing else may depend on its internals).
-- **`local` and `s3` sink adapters** behind one interface. Layout:
-  `<root>/<YYYY>/<MM>/<recording-id>/{meta.json, transcript.json, transcript.md, summary.md, audio.*}`,
-  written atomically with `meta.json` last.
-- **Incremental, idempotent sync** with a persisted cursor and
-  content-hash update detection.
-- **An append-only `events.jsonl`** in the sink root, with one event per
-  new or updated recording. The schema is documented in `README.md`.
-- **Verbs**: `auth`, `list`, `sync`, `watch`, `status`. Writes are dry-run
-  by default, `--apply` commits, and every verb takes `--json`.
 
 ## Constraints
 
 - **The repo is public.** Never commit tokens, recordings, transcripts, or
   fixtures made from real recordings. Fixtures are synthetic.
 - **S3 uses the standard AWS credential chain.** No bespoke secret store.
+  The `pk_` API key and webhook secret come from env vars or the keyring,
+  never from the repo.
 - **`scripts/scan-secrets.py` runs in CI.** It fails on non-localhost URLs
   under `url`/`host`/`endpoint`/`baseUrl` keys in any JSON file, so JSON
   fixtures use `localhost`.
-- **Runtime dependencies are zero today.** Put third-party clients (e.g.
-  `boto3`) behind an optional extra, imported lazily.
+- **Runtime dependencies are zero today.** Put third-party clients behind
+  optional extras (`pocketsync[s3]`, `pocketsync[mongo]`, `pocketsync[events]`,
+  the last two *(planned)*), imported lazily.
 
 ## Prompt files by harness
 

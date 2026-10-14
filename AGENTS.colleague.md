@@ -31,20 +31,51 @@ update this section so the docs keep matching what's actually on disk.
 
 ## What this project is
 
-`pocketsync` is the **sync bridge for the Pocket AI voice recorder**. It
-pulls recordings, transcripts (STT), summaries and action items out of
-Pocket's cloud into local disk and/or S3. That landing zone (a per-recording
-directory layout plus an append-only `events.jsonl`) is the contract
-[`culture-rules`](https://github.com/agentculture/culture-rules) consumes.
-pocketsync never routes data further.
+`pocketsync` is the **sync bridge for the Pocket AI voice recorder**
+(<https://heypocket.com>). It pulls recordings, speech-to-text transcripts,
+summaries and action items out of Pocket's cloud into stores we own: local
+disk, S3 and a dedicated MongoDB (`pocketsync-mongo`), kept near-realtime. It
+enriches each recording and emits one handoff event.
+[`culture-rules`](https://github.com/agentculture/culture-rules) workflows
+route the data onward, so the on-disk layout, the mongo document shape and the
+event stream are a public contract.
 
-**Status: scaffold only.** The sync engine is *(planned)*; the build brief is
-[issue #1](https://github.com/agentculture/pocketsync/issues/1). `CLAUDE.md`
-is written for a Claude Code session working *on* the repo. It is not your
-runtime prompt, but it is the fullest write-up of the planned architecture,
-the CLI contract and the repo's conventions (worktree layout, memory
-discipline, `ask-colleague` usage). Read it when a task needs more context
-than fits here.
+**Status: scaffold only.** The repo is still the `culture-agent-template`
+scaffold renamed to `pocketsync`. Everything below is *(planned)*, and none of
+that code exists yet; the build is in progress on branch
+`feat/pocket-to-mongodb`. The requirements baseline is the spec
+[`docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md`](docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md)
+(original brief: [issue #1](https://github.com/agentculture/pocketsync/issues/1)).
+
+**API premise (resolved by the spec).** Pocket has an official public API at
+`public.heypocketai.com/api/v1/public/*`, authenticated with a static
+`Authorization: Bearer pk_...` key (app Settings, Developer, API Keys), plus
+personal webhooks signed with HMAC-SHA256 over `{timestamp}.{rawBody}`
+(`X-HeyPocket-Signature`, `X-HeyPocket-Timestamp`; at-least-once, 30 s
+timeout, 3 attempts). *Superseded:* the earlier reverse-engineered
+Firebase-token path is not used; Pocket's Terms of Service bar automated
+access "for unauthorized purposes".
+
+Planned shape *(planned)*:
+
+- A Pocket source adapter (official API) plus a signed-webhook receiver at
+  `pocketsync.culture.dev/hooks/pocket` (Cloudflare tunnel, Access on with an
+  exact-path Bypass); deletes arrive as tombstones.
+- `local`, `s3` and `mongo` sinks behind one interface. `pocketsync-mongo` is
+  a dedicated `mongodb/mongodb-atlas-local` container on `127.0.0.1:27019`
+  with host bind mounts outside the repo; audio is saved as files.
+- Enrichment by pocketsync via the lobes gateway: `gemma2-embed` 768-d vectors
+  and lobes decider type labels.
+- Idempotent, content-hash incremental sync; one event per recording after
+  enrichment via events-cli (QoS 1) with an `events.jsonl` outbox.
+- Optional extras `pocketsync[s3]`, `pocketsync[mongo]`, `pocketsync[events]`;
+  the core stays dependency-free.
+
+`CLAUDE.md` is written for a Claude Code session working *on* the repo. It is
+not your runtime prompt, but it is the fullest write-up of the planned
+architecture, the CLI contract and the repo's conventions (worktree layout,
+memory discipline, `ask-colleague` usage). Read it when a task needs more
+context than fits here.
 
 ## How you work
 
@@ -57,8 +88,8 @@ than fits here.
 - Every PR bumps the version (`version-bump` skill) — CI's `version-check` job
   blocks merge otherwise.
 - The repo is public: never commit tokens, recordings, transcripts or
-  fixtures made from real recordings. Tests run against a fake Pocket adapter
-  and a fake S3, with synthetic fixtures.
+  fixtures made from real recordings. Tests run against a fake Pocket adapter,
+  a fake S3 and a fake Mongo, with synthetic fixtures.
 - Keep the CLI contract: `--json` on every verb, results to stdout and errors
   to stderr, `CliError` for failures, and an `explain` catalog entry for each
   new verb. Write verbs are dry-run by default and commit with `--apply`.
