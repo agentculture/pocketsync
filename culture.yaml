@@ -1,5 +1,5 @@
 agents:
-- suffix: culture-agent-template
+- suffix: pocketsync
   backend: claude
 gate:
   setup:
