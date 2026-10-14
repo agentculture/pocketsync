@@ -1,0 +1,32 @@
+# systemd USER unit: `pocketsync serve` (webhook receiver + landing + reconciler +
+# enrichment worker + outbox publisher) on the serving host.
+# Install (no root) as ~/.config/systemd/user/pocketsync-serve.service, then:
+#   systemctl --user daemon-reload && systemctl --user enable --now pocketsync-serve
+#   loginctl enable-linger "$USER"
+# Secrets are HIDDEN entries in the unit user's grant store. `grant run --inject` hands
+# them to pocketsync as env vars at exec time: they are on no disk path, not in argv and
+# not in this file. Placeholders (@NAME@) are filled by the operator; see
+# docs/operations/pocketsync-culture-dev.md.
+[Unit]
+Description=pocketsync serve (Pocket webhooks + reconcile -> pocketsync-mongo, 127.0.0.1 only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=POCKETSYNC_WEBHOOK_PORT=@WEBHOOK_PORT@
+Environment=POCKETSYNC_FILES_ROOT=%h/.local/share/pocketsync/files
+ExecStart=%h/.local/bin/grant run \
+  --inject POCKETSYNC_API_KEY=@POCKET_API_KEY_SECRET@ \
+  --inject POCKETSYNC_WEBHOOK_SECRET=@WEBHOOK_SECRET_SECRET@ \
+  --inject POCKETSYNC_GATEWAY_API_KEY=@GATEWAY_API_KEY_SECRET@ \
+  --inject POCKETSYNC_MONGO_URI=@MONGO_URI_SECRET@ \
+  -- %h/.local/bin/pocketsync serve
+Restart=on-failure
+RestartSec=5
+# serve stops its threads on SIGTERM and exits 0.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
