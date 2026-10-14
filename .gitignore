@@ -243,3 +243,6 @@ skills.local.yaml
 .devague/questions/
 
 .devague/reviews/
+
+# pocketsync-mongo credentials (the committed template is .env.example)
+deploy/mongo/.env
