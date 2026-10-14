@@ -48,7 +48,7 @@ that code exists yet; the build is in progress on branch
 (original brief: [issue #1](https://github.com/agentculture/pocketsync/issues/1)).
 
 **API premise (resolved by the spec).** Pocket has an official public API at
-`public.heypocket.com/api/v1/public/*`, authenticated with a static
+`public.heypocketai.com/api/v1/public/*`, authenticated with a static
 `Authorization: Bearer pk_...` key (app Settings, Developer, API Keys), plus
 personal webhooks signed with HMAC-SHA256 over `{timestamp}.{rawBody}`
 (`X-HeyPocket-Signature`, `X-HeyPocket-Timestamp`; at-least-once, 30 s

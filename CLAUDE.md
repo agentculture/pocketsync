@@ -40,7 +40,7 @@ gh issue view 1 --repo agentculture/pocketsync --json title,body,comments
 ```
 
 **The API premise (resolved by the spec).** Pocket has an **official public
-API**. It lives at `public.heypocket.com/api/v1/public/*` and is authenticated
+API**. It lives at `public.heypocketai.com/api/v1/public/*` and is authenticated
 with a static `Authorization: Bearer pk_...` key that the operator creates in
 the app under Settings → Developer → API Keys. Pocket also offers **personal
 webhooks**, signed with HMAC-SHA256 over `{timestamp}.{rawBody}` (headers
