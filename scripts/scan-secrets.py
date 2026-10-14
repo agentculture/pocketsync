@@ -18,6 +18,16 @@ links don't trip it:
    ``http(s)://`` URL. ``localhost`` / ``127.0.0.1`` / ``::1`` / ``0.0.0.0``
    are allowed; anything else fails.
 
+3. MongoDB connection strings — ``mongodb://`` / ``mongodb+srv://`` URIs in
+   ANY tracked file (prose and code included). A URI is flagged when it has
+   userinfo (``user@`` or ``user:pass@``) or any host outside localhost /
+   127.0.0.1 / ::1 / the ``pocketsync-mongo`` compose service name. Userinfo
+   that is an obvious placeholder is allowed: angle brackets
+   (``user:<password>``), ``$VAR`` / ``${VAR}`` references, or written-out
+   placeholder words. Files under ``tests/`` may carry synthetic userinfo on a
+   loopback host (fixtures), never a non-loopback host. Findings never echo the
+   URI, so a real password cannot leak through scanner output.
+
 Usage:
     scan-secrets.py                # scan all tracked files (git ls-files)
     scan-secrets.py path [path...] # scan specific files
@@ -231,6 +241,66 @@ def _scan_endpoints(path: str, text: str) -> list[Finding]:
 
 
 # ---------------------------------------------------------------------------
+# Check 3: MongoDB connection strings (any file type)
+# ---------------------------------------------------------------------------
+
+_MONGO_URI_RE = re.compile(r"mongodb(?:\+srv)?://(?P<rest>[^\s\"'`]*)")
+_MONGO_ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1", "pocketsync-mongo"}
+_MONGO_LOOPBACK = {"localhost", "127.0.0.1", "::1"}
+_REF_RE = re.compile(r"^(?:\$\{?[A-Za-z_]\w*\}?|<[^<>]*>)$")
+
+
+def _mongo_part_is_placeholder(part: str) -> bool:
+    return bool(_REF_RE.match(part)) or _is_placeholder(part)
+
+
+def _mongo_hosts(hostlist: str) -> list[str]:
+    hosts = []
+    for entry in hostlist.split(","):
+        entry = entry.strip()
+        if entry.startswith("["):  # bracketed IPv6
+            host = entry[1:].split("]", 1)[0]
+        elif entry.count(":") == 1:
+            host = entry.rsplit(":", 1)[0]
+        else:
+            host = entry
+        if host:
+            hosts.append(host.lower())
+    return hosts
+
+
+def _scan_mongo_uris(path: str, text: str) -> list[Finding]:
+    findings: list[Finding] = []
+    synthetic_ok = path.replace("\\", "/").startswith("tests/")
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        for match in _MONGO_URI_RE.finditer(line):
+            authority = re.split(r"[/?#]", match.group("rest"), maxsplit=1)[0]
+            if not authority:  # bare scheme, e.g. startswith("mongodb://")
+                continue
+            userinfo, _, hostlist = authority.rpartition("@")
+            hosts = _mongo_hosts(hostlist)
+            reasons = []
+            if userinfo:
+                # The password is the secret; with no password the username is judged.
+                user, sep, password = userinfo.partition(":")
+                secret = password if sep else user
+                if not _mongo_part_is_placeholder(secret):
+                    reasons.append("credentials in URI")
+            if any(h not in _MONGO_ALLOWED_HOSTS and not _REF_RE.match(h) for h in hosts):
+                reasons.append("non-localhost host")
+            if not reasons:
+                continue
+            if synthetic_ok and reasons == ["credentials in URI"]:
+                if all(h in _MONGO_LOOPBACK for h in hosts):
+                    continue
+            scheme = match.group(0).split("://", 1)[0]
+            findings.append(
+                Finding(path, lineno, "mongo-uri", f"{scheme}:// URI: {', '.join(reasons)}")
+            )
+    return findings
+
+
+# ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
 
@@ -260,6 +330,7 @@ def scan_paths(paths: list[str]) -> list[Finding]:
             continue
         findings.extend(_scan_credentials(rel_path, text))
         findings.extend(_scan_endpoints(rel_path, text))
+        findings.extend(_scan_mongo_uris(rel_path, text))
     return findings
 
 
