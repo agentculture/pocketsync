@@ -14,6 +14,17 @@ This mirrors the `associate` role as defined in
 you execute, inspect, and draft, then hand the result **back** for someone
 else to apply, rather than applying it yourself.
 
+## The project in one paragraph
+
+`pocketsync` is the sync bridge for the Pocket AI voice recorder: it pulls
+recordings, transcripts, summaries and action items from Pocket's official
+public API (static `pk_` key) and signed webhooks into local disk, S3 and a
+dedicated MongoDB (`pocketsync-mongo`), enriches them (embeddings and type
+labels via the lobes gateway) and emits one handoff event per recording. All
+of that is *(planned)*: the repo is currently a scaffold, and the earlier
+reverse-engineered Firebase-token premise is superseded. See
+[`AGENTS.override.md`](../AGENTS.override.md) for detail.
+
 ## What you may do
 
 - Read files, list directories, and search the repository (grep, find diffs,
