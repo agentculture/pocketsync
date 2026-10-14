@@ -4,7 +4,7 @@
   "schema_version": 6,
   "status": "exported",
   "created": "2026-10-14T19:38:59Z",
-  "updated": "2026-10-14T21:11:54Z",
+  "updated": "2026-10-14T21:14:37Z",
   "claims": [
     {
       "id": "c1",
@@ -1502,6 +1502,17 @@
       "skipped_check": "TDD red step; scanning tracked files after staging",
       "refs": [
         "t15"
+      ],
+      "origin": "llm",
+      "status": "proposed"
+    },
+    {
+      "id": "l7",
+      "code": "control-absent",
+      "what": "main agent ran scan-secrets before git-tracking .devague/deliveries, so the e5 evidence (a test id embedding a fake credentialed mongodb:// URI) slipped into commit c4c41fc unflagged",
+      "skipped_check": "scan-secrets after staging",
+      "refs": [
+        "c4c41fc"
       ],
       "origin": "llm",
       "status": "proposed"
