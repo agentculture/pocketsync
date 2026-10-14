@@ -23,9 +23,9 @@ services:
       # Loopback only. Never publish on 0.0.0.0.
       - "127.0.0.1:27019:27017"
     volumes:
-      # Host data root defaults to ~/.local/share/pocketsync/mongo.
+      # Host data root defaults to $HOME/.local/share/pocketsync/mongo.
       # The image runs as uid 1000 (mongod); the dirs must be writable by it.
-      - ${POCKETSYNC_DATA_DIR:-~/.local/share/pocketsync/mongo}/db:/data/db
-      - ${POCKETSYNC_DATA_DIR:-~/.local/share/pocketsync/mongo}/configdb:/data/configdb
+      - ${POCKETSYNC_DATA_DIR:-${HOME}/.local/share/pocketsync/mongo}/db:/data/db
+      - ${POCKETSYNC_DATA_DIR:-${HOME}/.local/share/pocketsync/mongo}/configdb:/data/configdb
       # mongot (Atlas Search / vectorSearch) persists its index data here.
-      - ${POCKETSYNC_DATA_DIR:-~/.local/share/pocketsync/mongo}/mongot:/data/mongot
+      - ${POCKETSYNC_DATA_DIR:-${HOME}/.local/share/pocketsync/mongo}/mongot:/data/mongot

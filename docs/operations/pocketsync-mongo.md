@@ -35,7 +35,7 @@ you (the image runs as uid 1000, `mongod`; if your uid differs, make the
 directories writable by uid 1000):
 
 ```bash
-D="${POCKETSYNC_DATA_DIR:-$HOME/.local/share/pocketsync/mongo}"
+D="${POCKETSYNC_DATA_DIR:-${HOME}/.local/share/pocketsync/mongo}"
 mkdir -p "$D"/db "$D"/configdb "$D"/mongot
 ```
 
@@ -56,7 +56,7 @@ The image has its own healthcheck (`runner healthcheck`), so `ps` shows
 
 ## Where data lives
 
-Root: `${POCKETSYNC_DATA_DIR:-~/.local/share/pocketsync/mongo}`. Set
+Root: `${POCKETSYNC_DATA_DIR:-${HOME}/.local/share/pocketsync/mongo}`. Set
 `POCKETSYNC_DATA_DIR` to an absolute path in `.env` or the shell to move it
 (compose does not expand `~` inside `.env` values).
 

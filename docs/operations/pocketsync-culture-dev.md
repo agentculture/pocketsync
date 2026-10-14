@@ -15,7 +15,7 @@ Pocket ──POST──▶ pocketsync.culture.dev/hooks/pocket   (Cloudflare edg
                    ▼
          http://127.0.0.1:<port>/hooks/pocket   (pocketsync serve, loopback only)
                    ▼
-         pocketsync-mongo (127.0.0.1:27019)  +  ~/.local/share/pocketsync/files
+         pocketsync-mongo (127.0.0.1:27019)  +  $HOME/.local/share/pocketsync/files
 ```
 
 ## Prerequisites
@@ -23,7 +23,7 @@ Pocket ──POST──▶ pocketsync.culture.dev/hooks/pocket   (Cloudflare edg
 - `pocketsync` installed for the unit user with the extras:
   `uv tool install 'pocketsync[mongo,events]'` (or from a checkout).
 - `pocketsync-mongo` running per `docs/operations/pocketsync-mongo.md`.
-- `grant` and `cloudflared` installed (`~/.local/bin/grant`,
+- `grant` and `cloudflared` installed (`$HOME/.local/bin/grant`,
   `/usr/local/bin/cloudflared`).
 - `cultureflare` with a Cloudflare API token that has Tunnel Edit plus Access
   Apps and Policies Edit (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` in
@@ -39,7 +39,7 @@ Store each value as a **hidden** grant secret (names are examples):
 |---|---|---|
 | `POCKETSYNC_POCKET_API_KEY` | `POCKETSYNC_API_KEY` | Pocket app → Settings → Developer → API Keys (`pk_…`) |
 | `POCKETSYNC_WEBHOOK_SECRET` | `POCKETSYNC_WEBHOOK_SECRET` | shown once when the Pocket webhook is created (step 5) |
-| `POCKETSYNC_GATEWAY_API_KEY` | `POCKETSYNC_GATEWAY_API_KEY` | lobes gateway key (`GATEWAY_API_KEY` in `~/.lobes/.env`) |
+| `POCKETSYNC_GATEWAY_API_KEY` | `POCKETSYNC_GATEWAY_API_KEY` | lobes gateway key (`GATEWAY_API_KEY` in `$HOME/.lobes/.env`) |
 | `POCKETSYNC_MONGO_URI` | `POCKETSYNC_MONGO_URI` | `mongodb://<user>:<password>@127.0.0.1:27019/?directConnection=true&authSource=admin` |
 
 Then verify the key without starting anything:
@@ -89,8 +89,8 @@ stale or unsigned requests with `401`, and refuses bodies over 5 MB with `413`.
 
 ```bash
 # token from GET .../cfd_tunnel/<tunnel-id>/token, sealed hidden in grant
-cp deploy/cloudflared/cloudflared-pocketsync.service ~/.config/systemd/user/
-cp deploy/systemd/pocketsync-serve.service ~/.config/systemd/user/
+cp deploy/cloudflared/cloudflared-pocketsync.service $HOME/.config/systemd/user/
+cp deploy/systemd/pocketsync-serve.service $HOME/.config/systemd/user/
 # fill the @NAME@ placeholders in both copies (grant secret names, port)
 systemctl --user daemon-reload
 systemctl --user enable --now pocketsync-serve cloudflared-pocketsync

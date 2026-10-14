@@ -312,14 +312,14 @@ Non-secret settings:
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `POCKETSYNC_FILES_ROOT` | `~/.local/share/pocketsync/files` | Root of the local file sink and the event outbox. |
+| `POCKETSYNC_FILES_ROOT` | `$HOME/.local/share/pocketsync/files` | Root of the local file sink and the event outbox. |
 | `POCKETSYNC_GATEWAY_URL` | `http://localhost:8001/v1` | Gateway base URL. |
 | `POCKETSYNC_WEBHOOK_PORT` | `8787` | Webhook server port *(planned)*. |
 | `POCKETSYNC_RECONCILE_INTERVAL` | `300` | Reconciler interval in seconds *(planned)*. |
 | `POCKETSYNC_ENRICHMENT_CONCURRENCY` | `2` | Parallel enrichment jobs *(planned)*. |
 | `POCKETSYNC_TAXONOMY_PATH` | built-in | Taxonomy TOML; default is `pocketsync/enrich/default_taxonomy.toml` (labels: meeting, call, idea, todo-reminder, personal-note, lecture-learning, other). |
 | `POCKETSYNC_CONFIG` | unset | Path to the optional TOML config. |
-| `POCKETSYNC_DATA_DIR` | `~/.local/share/pocketsync/mongo` | Host data root for the Mongo stack (compose only). |
+| `POCKETSYNC_DATA_DIR` | `$HOME/.local/share/pocketsync/mongo` | Host data root for the Mongo stack (compose only). |
 
 ## Credentials and privacy
 

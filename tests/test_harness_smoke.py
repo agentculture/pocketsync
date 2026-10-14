@@ -418,6 +418,37 @@ def test_steward_exiting_nonzero_with_no_output_skips_loudly(on_path: Path, clon
     assert result.status == "SKIP", result.detail
 
 
+def _portability(*lines: str) -> str:
+    body = "\n".join(f"    {line}" for line in lines)
+    msg = f"\u274c Per-user ~/.<dotfile> config refs in committed doc/config:\n{body}\n"
+    return json.dumps([{"check": "portability", "message": msg}])
+
+
+def test_steward_portability_in_devague_records_is_waived(on_path: Path, clone: Path) -> None:
+    """Confirmed claims quoted verbatim in spec/plan/delivery/.devague cannot be reworded."""
+    findings = _portability(
+        ".claude/skills/recall/SKILL.md:13:  ~/.eidetic/memory",
+        ".devague/plans/p.json:9:  e.g. ~/.local/share/x",
+        "docs/specs/2026-01-01-p.md:64:- e.g. ~/.local/share/x",
+        "docs/deliveries/2026-01-01-p.md:3:- ~/.local/share/x",
+    )
+    _fake_tool(on_path, "steward", findings, "", 1)
+    result = smoke.check_steward_doctor(clone, 30)
+    assert result.status == "WAIVED", result.detail
+
+
+def test_steward_portability_in_operational_docs_still_fails(on_path: Path, clone: Path) -> None:
+    """The record waiver must not hide a ~/. ref in a runbook, README or config."""
+    findings = _portability(
+        ".devague/plans/p.json:9:  e.g. ~/.local/share/x",
+        "docs/operations/runbook.md:12:cp unit ~/.config/systemd/user/",
+    )
+    _fake_tool(on_path, "steward", findings, "", 1)
+    result = smoke.check_steward_doctor(clone, 30)
+    assert result.status == "FAIL", result.detail
+    assert "docs/operations/runbook.md" in result.detail
+
+
 def test_guild_exiting_nonzero_with_a_valid_plan_is_a_failure(on_path: Path, clone: Path) -> None:
     """A dry-run that exits nonzero did not succeed, whatever it printed."""
     payload = json.dumps(
