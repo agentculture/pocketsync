@@ -92,7 +92,16 @@ def _wait_queryable(collection, name: str) -> None:
     pytest.fail(f"index {name} not queryable within {QUERYABLE_TIMEOUT}s; last={last}")
 
 
-def _search(collection, index: str, path: str, qvec: list[float], flt: dict | None):
+def _search(
+    collection,
+    index: str,
+    path: str,
+    qvec: list[float],
+    flt: dict | None,
+    *,
+    filter_key: str = "filter",
+):
+    """``filter_key`` is ``parentFilter`` for root-level paths on a nestedRoot index."""
     stage = {
         "index": index,
         "path": path,
@@ -101,7 +110,7 @@ def _search(collection, index: str, path: str, qvec: list[float], flt: dict | No
         "limit": 5,
     }
     if flt:
-        stage["filter"] = flt
+        stage[filter_key] = flt
     return list(
         collection.aggregate(
             [
@@ -156,20 +165,22 @@ def test_chunk_vector_search_nested_root(sink: MongoSink) -> None:
     assert hits and hits[0]["_id"] == "it-3"
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "FINDING (atlas-local 8.0.34): the nestedRoot chunk index builds and is queryable, but "
-        "a $vectorSearch filter on a PARENT-level path (enrichment.labels, declared as a filter "
-        "field in the index) silently returns [] instead of an error; filtering on a nested "
-        "path (enrichment.chunks.text) errors with \"Path 'enrichment.chunks.text' needs to be "
-        'indexed as filter". Chunk-level type filtering needs a vindex.py redesign.'
-    ),
-)
 def test_chunk_vector_search_with_parent_label_filter(sink: MongoSink) -> None:
+    """Root-level filters on a nestedRoot index go in ``parentFilter``.
+
+    Verified on atlas-local 8.0.34: the same predicate under ``filter`` silently returns [].
+    """
     col = sink.collection
     _wait_queryable(col, vindex.CHUNK_INDEX)
-    hits = _search(
-        col, vindex.CHUNK_INDEX, vindex.PATH_CHUNK_VECTOR, _vec(30), {vindex.PATH_LABELS: "alpha"}
+    flt = {vindex.PATH_LABELS: "alpha"}
+    hits = _eventually(
+        lambda: _search(
+            col,
+            vindex.CHUNK_INDEX,
+            vindex.PATH_CHUNK_VECTOR,
+            _vec(30),
+            flt,
+            filter_key="parentFilter",
+        )
     )
     assert hits and hits[0]["_id"] == "it-3"

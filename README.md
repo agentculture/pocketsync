@@ -48,12 +48,13 @@ Anything marked *(planned)* below is not on disk yet. The build brief is
 | systemd and cloudflared deploy | *(planned)* |
 | Example culture-rules rule consuming the events | *(planned)* |
 
-**Pocket API access is unverified.** No official Pocket developer API or bulk
-export has been found so far. The known community approach uses a
-reverse-engineered `app.heypocket.com` API with a short-lived (about one hour)
-Firebase ID token. Issue #1 calls for a report on whether an official path
-exists, whether authentication can persist unattended, and what Pocket's Terms
-of Service say about automated access.
+**Pocket API access uses the official API.** Pocket has an official public API
+at `public.heypocketai.com/api/v1/public/*`, authenticated with a static
+`Authorization: Bearer pk_...` key (Settings → Developer → API Keys), plus signed
+personal webhooks. The earlier reverse-engineered `app.heypocket.com` route with
+an hourly Firebase ID token is superseded and not used: Pocket's Terms of
+Service bar automated access "for unauthorized purposes". See the spec in
+`docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md`.
 
 ## Audiences
 
@@ -196,9 +197,11 @@ store accepts it as an opaque value, so treat its inner shape as provisional.
 | `recordings_summary_vec` | `enrichment.summary_vector` | `enrichment.labels`, `deleted_in_pocket`, `recording_at` |
 | `recordings_chunk_vec` | `enrichment.chunks.vector` (`nestedRoot` `enrichment.chunks`) | same |
 
-A model/dimension guard refuses to mix vector spaces. The chunk index
-definition is unverified until an integration test runs against a real Atlas
-Local; see the module docstring. Regular indexes cover `enrichment.status`,
+A model/dimension guard refuses to mix vector spaces. Both indexes were
+verified against a real atlas-local 8.0.34 (`tests/integration/`). On the
+`nestedRoot` chunk index, recording-level filters such as `enrichment.labels`
+must go in `$vectorSearch`'s **`parentFilter`**, not `filter`; under `filter`
+they silently match nothing. Regular indexes cover `enrichment.status`,
 `deleted_in_pocket` and `recording_at`.
 
 ### The `sync_state` collection

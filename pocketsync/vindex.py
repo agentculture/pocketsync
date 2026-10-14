@@ -14,9 +14,11 @@ Two named indexes are created (see the ``*_INDEX`` constants). MongoDB's
 vector-search-type docs describe a ``nestedRoot`` option for vectors nested in an
 array of documents, yet another passage says arrays of documents cannot be indexed.
 Because that is contradictory, the chunk index (``nestedRoot``) and the summary index
-are separate, and the chunk index definition is UNVERIFIED until an opt-in integration
-test runs against a real atlas-local. Whether root-level filter fields are accepted
-inside a ``nestedRoot`` index is part of that same uncertainty.
+are separate. Verified against atlas-local 8.0.34 (tests/integration/test_atlas_local.py):
+the ``nestedRoot`` chunk index builds and is queryable, and root-level filter fields are
+accepted — but queries must put root-level predicates (e.g. ``enrichment.labels``) in
+``$vectorSearch``'s ``parentFilter``; the same predicate under ``filter`` silently
+returns no results.
 
 Model/dims record: the index definition carries ``numDimensions``; the model name is
 kept in a ``{_id: "vindex", model, dims}`` doc in :data:`META_COLLECTION` (same
