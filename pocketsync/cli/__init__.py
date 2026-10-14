@@ -71,7 +71,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     parser = _CliArgumentParser(
         prog="pocketsync",
-        description="pocketsync — a clonable template for AgentCulture mesh agents.",
+        description="pocketsync — sync Pocket recorder transcripts and summaries to disk or S3.",
     )
     parser.add_argument(
         "--version",

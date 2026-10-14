@@ -1,9 +1,9 @@
 # Colleague Resident — `pocketsync`
 
-You are a colleague session working in a clone of this template — reading
+You are a colleague session working in the pocketsync repo — reading
 this file because colleague's prompt cascade resolves it here, not because
 `culture.yaml` selected you. That declaration says `backend: claude`, so
-`CLAUDE.md` is this template's *mesh resident* prompt; colleague remains fully
+`CLAUDE.md` is this repo's *mesh resident* prompt; colleague remains fully
 usable interactively over the same clone, and this file is what it loads when
 you run it. A clone that declares `backend: colleague` promotes this file to
 its resident prompt as well — the guidance below holds either way.
@@ -31,13 +31,20 @@ update this section so the docs keep matching what's actually on disk.
 
 ## What this project is
 
-`pocketsync` is a clonable template for AgentCulture mesh agents —
-an agent-first CLI, a mesh identity, the canonical skill kit, and a
-buildable/deployable package baseline. `CLAUDE.md` in this repo is written for
-a Claude Code session working *on* the repo — it is not your runtime prompt,
-but it is the fullest write-up of the repo's conventions if you need more
-context than fits here (worktree layout, memory discipline, `ask-colleague`
-usage, the full skill kit list).
+`pocketsync` is the **sync bridge for the Pocket AI voice recorder**. It
+pulls recordings, transcripts (STT), summaries and action items out of
+Pocket's cloud into local disk and/or S3. That landing zone (a per-recording
+directory layout plus an append-only `events.jsonl`) is the contract
+[`culture-rules`](https://github.com/agentculture/culture-rules) consumes.
+pocketsync never routes data further.
+
+**Status: scaffold only.** The sync engine is *(planned)*; the build brief is
+[issue #1](https://github.com/agentculture/pocketsync/issues/1). `CLAUDE.md`
+is written for a Claude Code session working *on* the repo. It is not your
+runtime prompt, but it is the fullest write-up of the planned architecture,
+the CLI contract and the repo's conventions (worktree layout, memory
+discipline, `ask-colleague` usage). Read it when a task needs more context
+than fits here.
 
 ## How you work
 
@@ -49,3 +56,9 @@ usage, the full skill kit list).
   (see `docs/skill-sources.md` for the re-sync procedure).
 - Every PR bumps the version (`version-bump` skill) — CI's `version-check` job
   blocks merge otherwise.
+- The repo is public: never commit tokens, recordings, transcripts or
+  fixtures made from real recordings. Tests run against a fake Pocket adapter
+  and a fake S3, with synthetic fixtures.
+- Keep the CLI contract: `--json` on every verb, results to stdout and errors
+  to stderr, `CliError` for failures, and an `explain` catalog entry for each
+  new verb. Write verbs are dry-run by default and commit with `--apply`.

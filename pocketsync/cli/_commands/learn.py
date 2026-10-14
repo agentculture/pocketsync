@@ -12,14 +12,18 @@ from pocketsync import __version__
 from pocketsync.cli._output import emit_result
 
 _TEXT = """\
-pocketsync — a clonable template for AgentCulture mesh agents.
+pocketsync — sync Pocket voice-recorder data to local disk or S3.
 
 Purpose
 -------
-Scaffold for a new Culture mesh agent: an agent-first CLI (cited from the teken
-`python-cli` reference), an identity (culture.yaml + CLAUDE.md), the canonical
-guildmaster skill kit under .claude/skills/, and a deploy/CI baseline. Clone it,
-rename the package, and edit culture.yaml to mint a new agent.
+Pull recordings, transcripts (STT), summaries and action items out of the Pocket
+cloud into a landing zone we own (local disk and/or S3), and emit an append-only
+events.jsonl that culture-rules workflows trigger on. pocketsync does not route
+data further.
+
+Status: the sync verbs (auth, list, sync, watch, status) are planned and not yet
+available; today the CLI carries the agent identity and introspection verbs
+below. See https://github.com/agentculture/pocketsync/issues/1.
 
 Commands
 --------
@@ -52,7 +56,7 @@ def _as_json_payload() -> dict[str, object]:
     return {
         "tool": "pocketsync",
         "version": __version__,
-        "purpose": "Clonable scaffold for a new AgentCulture mesh agent.",
+        "purpose": "Sync Pocket recordings, transcripts and summaries to local disk or S3.",
         "commands": [
             {"path": ["whoami"], "summary": "Identity probe from culture.yaml."},
             {"path": ["learn"], "summary": "Self-teaching prompt."},

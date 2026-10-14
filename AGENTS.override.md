@@ -20,14 +20,29 @@ what the repo is and how it is laid out, not who is reading it.
 
 ## What this project is
 
-`pocketsync` is a clonable template for AgentCulture mesh agents —
-a working, minimal example of the sibling pattern every Culture agent follows:
-an agent-first CLI, a mesh identity, the canonical skill kit, and a
-buildable/deployable package baseline. It is a sibling to
-[`guildmaster`](https://github.com/agentculture/guildmaster) (the skills
-supplier), [`steward`](https://github.com/agentculture/steward) (alignment),
-and [`teken`](https://github.com/agentculture/teken) (the CLI scaffolder this
-package is cited from).
+`pocketsync` is the **sync bridge for the Pocket AI voice recorder**
+(<https://heypocket.com>). It pulls recordings, speech-to-text transcripts,
+summaries and action items out of Pocket's cloud into a store we own: local
+disk and/or S3. [`culture-rules`](https://github.com/agentculture/culture-rules)
+workflows route the data onward from that landing zone, so its layout and the
+append-only `events.jsonl` handoff stream are a public contract (draft schema
+in `README.md`).
+
+**Status: scaffold only.** The repo is still the `culture-agent-template`
+scaffold renamed to `pocketsync`. The sync engine, Pocket adapter, sinks and
+events are *(planned)*, and none of that code exists yet. The build brief is
+[issue #1](https://github.com/agentculture/pocketsync/issues/1). Its first
+open question is whether Pocket can be accessed at all: no official API is
+known, and the community approach uses a reverse-engineered API with an
+hourly-expiring Firebase token. If you are asked about Pocket API access,
+report what is verified and what is not.
+
+Siblings: [`guildmaster`](https://github.com/agentculture/guildmaster)
+(skills supplier), [`steward`](https://github.com/agentculture/steward)
+(alignment), [`teken`](https://github.com/agentculture/teken) (the CLI
+scaffolder this package is cited from), `culture-rules` (the downstream
+consumer), and [`events-cli`](https://github.com/agentculture/events-cli)
+(the optional MQTT event bus).
 
 ## Four harnesses, four files, no shared base
 
@@ -57,7 +72,7 @@ agents:
   backend: claude
 ```
 
-This template's *mesh* resident runs on `backend: claude`, so `CLAUDE.md` is
+This repo's *mesh* resident runs on `backend: claude`, so `CLAUDE.md` is
 the live resident prompt. A Pi session working in a clone of this repo is a
 **local tool session**, not the mesh resident — it reads this file and
 `.pi/SYSTEM.md` regardless of what `culture.yaml` declares, and running `pi`
@@ -65,18 +80,19 @@ here neither requires nor changes that declaration.
 
 (A clone that wants `associate` as its *mesh* resident declares
 `backend: colleague` with `model: associate` — see `docs/skill-sources.md`.
-That is a per-clone choice; this template does not ship it.)
+That is a per-clone choice; this repo does not ship it.)
 
 ## Layout (what you can read/find/summarize here)
 
 ```text
-pocketsync/   agent-first CLI (cited from teken's python-cli reference)
+pocketsync/               agent-first CLI (cited from teken's python-cli reference)
   cli/                    parser, error/output contract, _commands/ (verbs)
   explain/                markdown catalog for `explain`
 tests/                    pytest smoke + introspection tests
+scripts/                  scan-secrets.py, harness-smoke.py (CI gates)
 .claude/skills/           vendored guildmaster skill kit (cite-don't-import)
-docs/skill-sources.md     skill provenance ledger
-culture.yaml              mesh identity (suffix + backend)
+docs/                     skill provenance, harness selection/automation contract
+culture.yaml              mesh identity (suffix + backend) + gate commands
 .github/workflows/        tests + deploy (PyPI Trusted Publishing)
 ```
 
@@ -85,9 +101,11 @@ culture.yaml              mesh identity (suffix + backend)
 - The vendored skills under `.claude/skills/` are cited **verbatim** from
   guildmaster — never propose editing their scripts; the fix belongs upstream
   (`docs/skill-sources.md` has the re-sync procedure).
-- The package/CLI name (`pocketsync` / `pocketsync`)
-  is hard-coded in roughly a hundred places; a rename is a `git grep` sweep,
-  not a hand edit (see `CLAUDE.md`'s "Cloning this template" section).
+- The repo is public. Never quote, copy or summarize real Pocket
+  credentials, recordings or transcripts into anything that could be
+  committed; test fixtures are synthetic by rule.
+- Write verbs (planned) are dry-run by default and commit only with
+  `--apply`, so a dry-run is the safe way to answer "what would sync do?".
 - Every PR bumps the version (`version-bump` skill); CI's `version-check` job
   blocks merge otherwise.
 - This file describes the repo **as it exists on disk today**. If you are

@@ -12,11 +12,13 @@ from __future__ import annotations
 _ROOT = """\
 # pocketsync
 
-A clonable template for AgentCulture mesh agents. It carries an agent-first CLI
-(cited from the teken `python-cli` reference), a mesh identity (`culture.yaml` +
-`CLAUDE.md`), the canonical guildmaster skill kit under `.claude/skills/`, and a
-buildable/deployable package baseline. Clone it, rename the package, edit
-`culture.yaml`, and you have a new agent.
+Sync bridge for the Pocket AI voice recorder. It pulls recordings, transcripts
+(STT), summaries and action items out of the Pocket cloud into a landing zone we
+own (local disk and/or S3) and emits an append-only `events.jsonl` that
+culture-rules workflows trigger on. It does not route data any further.
+
+The sync verbs (`auth`, `list`, `sync`, `watch`, `status`) are planned (issue
+#1); today the CLI carries the agent-first identity and introspection verbs.
 
 ## Verbs
 
@@ -81,7 +83,7 @@ _OVERVIEW = """\
 # pocketsync overview
 
 Read-only descriptive snapshot of the agent: identity (from `culture.yaml`), the
-verb surface, and the sibling-pattern artifacts the template carries. Accepts an
+verb surface, and the sibling-pattern artifacts the agent carries. Accepts an
 ignored `target` so a stray path never hard-fails.
 
 ## Usage
