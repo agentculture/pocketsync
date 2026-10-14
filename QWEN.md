@@ -9,23 +9,60 @@ Qwen Code session.
 
 ## What this project is
 
-`pocketsync` is a **clonable template for AgentCulture mesh agents**.
-It is a working, minimal example of the sibling pattern every Culture agent
-follows: an agent-first CLI, a mesh identity, the canonical skill kit, and a
-buildable/deployable package baseline. Clone it, rename the package, edit
-`culture.yaml`, and you have a new agent that `steward doctor` recognizes.
+`pocketsync` is the **sync bridge for the Pocket AI voice recorder**
+(<https://heypocket.com>). It pulls recordings, speech-to-text transcripts,
+summaries and action items out of Pocket's cloud. It lands them in a store we
+own: **local disk** and/or **S3**. That landing zone is the whole lane.
+[`culture-rules`](https://github.com/agentculture/culture-rules) workflows
+pick the data up from there and route it elsewhere, so the on-disk layout and
+the `events.jsonl` handoff stream are a public contract.
 
-It is a sibling to [`guildmaster`](https://github.com/agentculture/guildmaster)
-(the **skills supplier**), [`steward`](https://github.com/agentculture/steward)
-(**alignment** — `steward doctor`, the sibling-pattern baseline), and
-[`teken`](https://github.com/agentculture/teken) (the **afi-cli** "Agent First
-Interface" scaffolder this CLI is cited from) within the Organic Development
-framework.
+Non-goals: no re-running STT, no downstream routing, no UI.
+
+## Status
+
+**Scaffold only.** The repo is the `culture-agent-template` scaffold renamed
+to `pocketsync`. The only CLI verbs on disk are the identity/introspection
+ones listed below. The sync engine, Pocket adapter, sinks and events are
+*(planned)*. The build brief is
+[issue #1](https://github.com/agentculture/pocketsync/issues/1). `gh issue
+view 1` errors on a deprecated field; use
+`gh issue view 1 --repo agentculture/pocketsync --json title,body,comments`.
+
+The Pocket API premise is **unverified**. No official API has been found; the
+known path is a reverse-engineered `app.heypocket.com` API using a Firebase ID
+token that expires roughly hourly. Verifying API access, persistent auth and
+Terms of Service is the first deliverable.
+
+## Planned shape (from issue #1)
+
+- A **Pocket source adapter** behind an interface (the unofficial API will
+  break; nothing else may depend on its internals).
+- **`local` and `s3` sink adapters** behind one interface. Layout:
+  `<root>/<YYYY>/<MM>/<recording-id>/{meta.json, transcript.json, transcript.md, summary.md, audio.*}`,
+  written atomically with `meta.json` last.
+- **Incremental, idempotent sync** with a persisted cursor and
+  content-hash update detection.
+- **An append-only `events.jsonl`** in the sink root, with one event per
+  new or updated recording. The schema is documented in `README.md`.
+- **Verbs**: `auth`, `list`, `sync`, `watch`, `status`. Writes are dry-run
+  by default, `--apply` commits, and every verb takes `--json`.
+
+## Constraints
+
+- **The repo is public.** Never commit tokens, recordings, transcripts, or
+  fixtures made from real recordings. Fixtures are synthetic.
+- **S3 uses the standard AWS credential chain.** No bespoke secret store.
+- **`scripts/scan-secrets.py` runs in CI.** It fails on non-localhost URLs
+  under `url`/`host`/`endpoint`/`baseUrl` keys in any JSON file, so JSON
+  fixtures use `localhost`.
+- **Runtime dependencies are zero today.** Put third-party clients (e.g.
+  `boto3`) behind an optional extra, imported lazily.
 
 ## Prompt files by harness
 
 This repo's root carries one prompt file per agent harness, each read by
-exactly one of them — there is no shared base file for them to inherit from:
+exactly one of them. There is no shared base file for them to inherit from:
 
 - **Claude Code** → [`CLAUDE.md`](CLAUDE.md) (the fullest write-up; read it
   first if you are new to the repo).
@@ -44,41 +81,18 @@ agents:
   backend: claude
 ```
 
-`backend: claude` fixes the *mesh resident* prompt file to `CLAUDE.md` — the
-mesh runtime reads that file, not this one. A Qwen Code session working in a
-clone of this repo is a separate, local tool session; it reads `QWEN.md`
-regardless of what `culture.yaml` declares, and running Qwen Code here neither
-requires nor changes that declaration. The declaration and the resident prompt
-together satisfy the two invariants `steward doctor` verifies:
-**prompt-file-present** and **backend-consistency** (`claude` ↔ `CLAUDE.md`).
-
-## Cloning this template (re-initialization)
-
-When you start a new agent from this template:
-
-1. Rename the package directory `pocketsync/` → `<your_module>/`
-   and replace `pocketsync` (module) / `pocketsync`
-   (CLI and dist name) throughout `pyproject.toml`, the package, `tests/`,
-   `sonar-project.properties`, and `README.md`. The name is hard-coded in
-   ~100 places, so list every occurrence first rather than renaming by hand
-   (`git grep` is portable and skips `.git` / untracked `__pycache__`):
-
-   ```bash
-   git grep -nF -e 'pocketsync' -e 'pocketsync'
-   ```
-
-2. Set your `suffix` (and `backend`) in `culture.yaml`. `whoami` and `doctor`
-   then reflect the new identity with no further code change.
-3. Rewrite `CLAUDE.md` (and this file, and the other two harness files) to
-   describe your agent.
-4. Re-vendor the skill kit you need from guildmaster (see
-   `docs/skill-sources.md`) — keep only the skills your agent uses.
+`backend: claude` fixes the *mesh resident* prompt file to `CLAUDE.md`. The
+mesh runtime reads that file, not this one. A Qwen Code session working here is
+a separate, local tool session; it reads `QWEN.md` regardless of what
+`culture.yaml` declares. The declaration and the resident prompt together
+satisfy the two invariants `steward doctor` verifies: **prompt-file-present**
+and **backend-consistency** (`claude` ↔ `CLAUDE.md`).
 
 ## The CLI
 
-The CLI is cited (cite-don't-import) from teken's `python-cli` reference
-(`teken cli cite`), so the runtime package has **no third-party dependencies**;
-`teken` (a.k.a. `afi-cli`) is a dev dependency only. Agent-first verbs:
+The CLI is cited (cite-don't-import) from teken's `python-cli` reference, so
+the runtime package has **no third-party dependencies**. `teken` is a dev
+dependency only. Verbs available today:
 
 - `pocketsync whoami` — identity from `culture.yaml`.
 - `pocketsync learn` — structured self-teaching prompt.
@@ -87,43 +101,52 @@ The CLI is cited (cite-don't-import) from teken's `python-cli` reference
 - `pocketsync doctor` — check the agent-identity invariants.
 - `pocketsync cli overview` — describe the CLI surface itself.
 
-Conventions: every command supports `--json`; results go to stdout, errors and
-diagnostics to stderr (never mixed); exit codes are `0` success, `1` user
-error, `2` environment error, `3+` reserved. The agent-first rubric is
-enforced in CI by `teken cli doctor . --strict`.
+Conventions:
+
+- Every command supports `--json`.
+- Results go to stdout, and errors and diagnostics go to stderr (never mixed).
+- Exit codes are `0` success, `1` user error, `2` environment error, `3+`
+  reserved.
+- New verbs need an `explain` catalog entry (`pocketsync/explain/catalog.py`).
+- The agent-first rubric is enforced in CI by `teken cli doctor . --strict`.
 
 ## Skills
 
 `.claude/skills/` vendors the **canonical guildmaster skill kit**
-(cite-don't-import). Provenance and the re-sync procedure live in
-`docs/skill-sources.md`. Do not reformat or edit vendored scripts — re-sync
-from guildmaster instead.
+(cite-don't-import), and `.qwen/skills` is a symlink to it. Provenance and the
+re-sync procedure live in `docs/skill-sources.md`. Do not reformat or edit
+vendored scripts; re-sync from guildmaster instead.
 
 ## Conventions
 
-- **Every PR bumps the version** — even docs/config/CI. Use the
-  `version-bump` skill; the `version-check` CI job blocks merge otherwise.
-- **Tests**: `uv run pytest -n auto`. **Lint**: black, isort, flake8 (line
-  length 100), bandit, markdownlint.
+- **Every PR bumps the version.** This applies even to docs, config and CI.
+  Use the `version-bump` skill; the `version-check` CI job blocks merge
+  otherwise.
+- **Tests**: `uv run pytest -n auto`. A single test:
+  `uv run pytest tests/test_cli.py::test_whoami_json`.
+- **Lint**: black, isort, flake8 (line length 100), bandit, markdownlint,
+  `scripts/scan-secrets.py`.
 - **Deploy**: pushing to `main` publishes to PyPI via Trusted Publishing
-  (`.github/workflows/publish.yml`); PRs do a TestPyPI dry-run.
+  (`.github/workflows/publish.yml`), and PRs do a TestPyPI dry-run. The PyPI
+  Trusted Publisher still has to be registered by the operator.
 
 ## Layout
 
 ```text
-pocketsync/   agent-first CLI (cited from teken's python-cli reference)
+pocketsync/               agent-first CLI (cited from teken's python-cli reference)
   cli/                    parser, error/output contract, _commands/ (verbs)
   explain/                markdown catalog for `explain`
 tests/                    pytest smoke + introspection tests
+scripts/                  scan-secrets.py, harness-smoke.py (CI gates)
 .claude/skills/           vendored guildmaster skill kit (cite-don't-import)
-docs/skill-sources.md     skill provenance ledger
-culture.yaml              mesh identity (suffix + backend)
+docs/                     skill provenance, harness selection/automation contract
+culture.yaml              mesh identity (suffix + backend) + gate commands
 .github/workflows/        tests + deploy (PyPI Trusted Publishing)
 ```
 
 This file describes the repository **as it exists on disk today**. When you
 edit, keep claims grounded in checked-in reality; if a section drifts ahead of
-reality, mark it `(planned)` or move it under a `## Roadmap` heading. For the
-full set of workflow conventions (worktree layout, memory discipline,
-`ask-colleague` usage), see [`CLAUDE.md`](CLAUDE.md) — those conventions apply
-to work in this repo regardless of which harness is doing it.
+reality, mark it `(planned)`. For the full set of workflow conventions
+(worktree layout, memory discipline, `ask-colleague` usage), see
+[`CLAUDE.md`](CLAUDE.md). Those conventions apply to work in this repo
+regardless of which harness is doing it.

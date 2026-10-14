@@ -1,7 +1,7 @@
 """``pocketsync overview`` — read-only descriptive snapshot of the agent.
 
 Describes the agent to an agent reader: identity (from culture.yaml), the verb
-surface, and the sibling-pattern artifacts this template carries. The shared
+surface, and the sibling-pattern artifacts this agent carries. The shared
 section/render helpers here are reused by the ``cli`` noun's ``overview`` (see
 :mod:`pocketsync.cli._commands.cli`).
 
@@ -18,7 +18,7 @@ from pocketsync.cli._commands.whoami import report
 from pocketsync.cli._output import emit_result
 
 _ARTIFACTS = [
-    "culture.yaml + AGENTS.colleague.md — mesh identity (suffix + backend)",
+    "culture.yaml + CLAUDE.md — mesh identity (suffix + backend: claude)",
     ".claude/skills/ — the canonical guildmaster skill kit (cite-don't-import)",
     "docs/skill-sources.md — skill provenance ledger",
     "pyproject.toml + .github/workflows/ — buildable, deployable package baseline",

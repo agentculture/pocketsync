@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-10-14
+
+### Changed
+
+- `CLAUDE.md` re-initialized from the seed into a full runtime prompt for the Pocket sync agent: the domain and lane, the issue #1 build brief and its verify-the-API-first premise, the planned adapter/sink/events architecture (marked planned), the CLI contract, the CI gates, and the repo conventions.
+- `README.md` now describes pocketsync rather than the template: the lane and non-goals, the planned CLI verbs, and a draft landing-zone layout and `events.jsonl` handoff contract for culture-rules, plus a credentials and privacy section.
+- `QWEN.md`, `AGENTS.override.md` and `AGENTS.colleague.md` updated to the same project description and status.
+- `learn`, `explain`, `overview` and `--help` now describe the Pocket sync purpose instead of the template; `overview` names `CLAUDE.md` (not `AGENTS.colleague.md`) as the identity prompt.
+
 ## [0.10.0] - 2026-10-06
 
 ### Added
