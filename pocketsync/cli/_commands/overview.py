@@ -29,7 +29,15 @@ _VERBS = [
     "learn — structured self-teaching prompt",
     "explain <path> — markdown docs for a topic",
     "overview — this descriptive snapshot",
-    "doctor — check the agent-identity invariants",
+    "doctor — identity invariants plus runtime health (Mongo, gateway, index, webhooks)",
+    "auth — verify the Pocket API key with one list call",
+    "list [--since DATE] [--limit N] — remote recordings with local sync status",
+    "sync [--since DATE] [--no-audio] [--no-enrich] [--apply] — one reconcile/backfill pass "
+    "(dry run unless --apply)",
+    "watch [--interval S] — reconciler-only loop until SIGTERM/Ctrl-C",
+    "serve [--port P] — webhook receiver + landing + reconciler + enrichment in one process",
+    "status — watermark, last run, webhook health, enrichment backlog, last errors",
+    "reembed [--apply] — queue recordings embedded with another model (dry run unless --apply)",
 ]
 
 
@@ -62,6 +70,7 @@ def cli_sections() -> list[dict[str, object]]:
             "title": "Conventions",
             "items": [
                 "every command supports --json",
+                "write verbs (sync, reembed) are dry runs unless --apply",
                 "results to stdout, errors/diagnostics to stderr (never mixed)",
                 "exit codes: 0 success, 1 user error, 2 environment error, 3+ reserved",
             ],
