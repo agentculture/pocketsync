@@ -23,7 +23,7 @@ from pocketsync.sinks.local import LocalSink
 from pocketsync.sinks.mongo import MongoSink
 from pocketsync.state import MongoStateStore
 
-SECRET = "synthetic-webhook-secret"  # synthetic test value
+SECRET = "fake-webhook-secret"  # synthetic test value
 
 
 def ts(days_ago: float = 0.0, minutes: int = 0) -> str:
