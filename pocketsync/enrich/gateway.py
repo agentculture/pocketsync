@@ -213,8 +213,11 @@ class GatewayClient:
             probs = {k: float(v) for k, v in ans.get("probabilities", {}).items()}
             labels = [ans["choice"]] if ans.get("choice") else []
             conf = float(ans.get("confidence", 0.0))
-        filters = {
-            f.name: float(answers.get(f"filter:{f.name}", {}).get("noul", 0.0))
-            for f in self.taxonomy.filters
-        }
+        # An unanswered filter is left out (unknown), never defaulted to 0.0: for a filter
+        # like ``sensitive`` a fabricated 0.0 would read as "safe to share".
+        filters: dict[str, float] = {}
+        for f in self.taxonomy.filters:
+            noul = answers.get(f"filter:{f.name}", {}).get("noul")
+            if noul is not None:
+                filters[f.name] = float(noul)
         return Classification(labels, conf, probs, filters, self.taxonomy.version)

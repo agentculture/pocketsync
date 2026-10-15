@@ -179,7 +179,7 @@ Example, with synthetic values and truncated vectors:
     "model": "example-embed-model",
     "dims": 768,
     "labels": ["meeting"],
-    "filters": {"has_action_items": true},
+    "filters": {"has_action_items": 0.82, "sensitive": 0.07},
     "taxonomy_version": "1",
     "summary_vector": [0.012, -0.034, "…768 floats"],
     "chunks": [
@@ -193,8 +193,16 @@ Example, with synthetic values and truncated vectors:
 ```
 
 The enrichment worker writes `filters` from the lobes decider as
-`{filter_name: confidence}`. The store accepts it as an opaque value, and the
-label taxonomy is still open, so treat its inner shape as provisional.
+`{filter_name: confidence}`, a probability from 0 to 1. The default taxonomy
+asks two filters:
+
+- `has_action_items`: the recording contains action items for the operator.
+- `sensitive`: the recording is private (health, money, relationships,
+  credentials) and should not leave the operator's own stores.
+
+A filter the decider did not answer is **absent**, not `0`. Treat an absent
+filter as unknown. In particular, route a recording to a shared destination
+only when `sensitive` is present and low.
 
 ### Vector search
 

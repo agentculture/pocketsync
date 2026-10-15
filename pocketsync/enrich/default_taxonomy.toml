@@ -33,3 +33,7 @@ description = "anything that does not fit the other labels"
 [[filters]]
 name = "has_action_items"
 instructions = "Does this recording contain action items for me?"
+
+[[filters]]
+name = "sensitive"
+instructions = "Is this recording sensitive or private (health, money, relationships, credentials or other personal matters) so that it should not be shared outside my own stores?"

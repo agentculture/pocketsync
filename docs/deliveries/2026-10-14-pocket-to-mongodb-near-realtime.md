@@ -189,8 +189,10 @@ bear on a claim. Evidence `e1`–`e55` is also approved.
   - daemon dry-run semantics;
   - the `webhook_missed` window;
   - re-classification on start.
-- q8 (the decider label taxonomy) is still open. A default ships in
-  `pocketsync/enrich/default_taxonomy.toml`; the operator may revise it.
+- q8 (the decider label taxonomy) is resolved provisionally (2026-10-15). The
+  default labels stay, a `sensitive` filter was added, and the set is revisited
+  after the live deploy. Making labels configurable via API, MCP and CLI, with
+  human approval through culture-rules, is the next feature.
 - Untested paths:
   - the real events-cli publish against a live broker;
   - `gemma2-embed` retrieval quality on prose (v6, lobes #296);

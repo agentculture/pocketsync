@@ -128,3 +128,28 @@ def test_client_errors_are_not_retryable(client, status):
     with pytest.raises(CliError) as ei:
         client.embed(["a"])
     assert not isinstance(ei.value, EnrichmentUnavailable)
+
+
+def test_default_taxonomy_is_the_approved_q8_set():
+    # q8 (operator decision 2026-10-15): keep the default labels, single-label, and add a
+    # sensitive/private filter so downstream routing can keep such recordings out of shared
+    # destinations.
+    tax = load_taxonomy()
+    assert [lab.name for lab in tax.labels] == [
+        "meeting",
+        "call",
+        "idea",
+        "todo-reminder",
+        "personal-note",
+        "lecture-learning",
+        "other",
+    ]
+    assert tax.multi is False
+    assert [f.name for f in tax.filters] == ["has_action_items", "sensitive"]
+
+
+def test_unanswered_filter_is_absent_not_zero(client):
+    # A missing decider answer is "unknown". Recording it as 0.0 would read as "not sensitive"
+    # and could let a private recording be routed to a shared destination.
+    res = client.classify("hello")  # the fake answers has_action_items only
+    assert "sensitive" not in res.filters
