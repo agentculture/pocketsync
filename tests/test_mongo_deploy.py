@@ -19,7 +19,8 @@ def test_image_is_atlas_local_and_pinned():
     image = _service()["image"]
     name, _, tag = image.partition(":")
     assert name == "mongodb/mongodb-atlas-local"
-    assert tag and tag not in {"latest", "preview"}
+    assert tag
+    assert tag not in {"latest", "preview"}
     assert tag[0].isdigit()
 
 

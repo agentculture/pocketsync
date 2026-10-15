@@ -45,9 +45,11 @@ def test_status_json_reports_every_health_field(rt, capsys):
 def test_status_empty_store(rt, capsys):
     assert main(["status", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["watermark"] is None and out["last_run"] is None
+    assert out["watermark"] is None
+    assert out["last_run"] is None
     assert out["last_webhook_at"] is None
-    assert out["webhook_missed"] == 0 and out["enrichment_backlog"] == 0
+    assert out["webhook_missed"] == 0
+    assert out["enrichment_backlog"] == 0
     assert out["last_errors"] == []
 
 
@@ -62,7 +64,8 @@ def test_status_requires_mongo(tmp_path, monkeypatch, capsys):
     install(monkeypatch, FakeRuntime(tmp_path, [], POCKETSYNC_MONGO_URI=""))
     assert main(["status"]) == 2
     err = capsys.readouterr().err
-    assert err.startswith("error:") and "hint:" in err
+    assert err.startswith("error:")
+    assert "hint:" in err
 
 
 def _seed_mismatched(rt):
@@ -108,17 +111,20 @@ def test_reembed_apply_marks_only_affected_pending(rt, capsys):
     before = {d["_id"]: d for d in col.find({})}
     assert main(["reembed", "--apply", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["dry_run"] is False and out["updated"] == 1
+    assert out["dry_run"] is False
+    assert out["updated"] == 1
     after = {d["_id"]: d for d in col.find({})}
     assert after["r0001"]["enrichment"]["status"] == "pending"
     # nothing else on that doc changed, and the other docs are untouched
     a1 = dict(after["r0001"], enrichment=dict(after["r0001"]["enrichment"], status="done"))
     assert a1 == before["r0001"]
-    assert after["r0002"] == before["r0002"] and after["r0003"] == before["r0003"]
+    assert after["r0002"] == before["r0002"]
+    assert after["r0003"] == before["r0003"]
 
 
 def test_reembed_text_dry_run(rt, capsys):
     _seed_mismatched(rt)
     assert main(["reembed"]) == 0
     out = capsys.readouterr().out
-    assert "r0001" in out and "--apply" in out
+    assert "r0001" in out
+    assert "--apply" in out

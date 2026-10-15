@@ -29,7 +29,8 @@ def test_auth_json_one_list_call_limit_1(rt, capsys):
     out = json.loads(capsys.readouterr().out)
     assert out["ok"] is True
     assert out["total"] == 3
-    assert len(calls) == 1 and calls[0]["limit"] == 1
+    assert len(calls) == 1
+    assert calls[0]["limit"] == 1
     assert rt.pocket.calls == ["list_recordings"]
 
 
@@ -52,7 +53,8 @@ def test_auth_pocket_error_text_has_hint(rt, capsys):
     rt.pocket.set_rate_limit(1)
     assert main(["auth"]) == 2
     err = capsys.readouterr().err
-    assert err.startswith("error:") and "hint:" in err
+    assert err.startswith("error:")
+    assert "hint:" in err
 
 
 def test_list_reports_sync_status(rt, capsys):
@@ -76,13 +78,15 @@ def test_list_detects_remote_edit(rt, capsys):
     assert main(["list", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
     r1 = next(r for r in out["recordings"] if r["id"] == "r0001")
-    assert r1["synced"] is True and r1["up_to_date"] is False
+    assert r1["synced"] is True
+    assert r1["up_to_date"] is False
 
 
 def test_list_limit_and_since(rt, capsys):
     assert main(["list", "--limit", "2", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert len(out["recordings"]) == 2 and out["has_more"] is True
+    assert len(out["recordings"]) == 2
+    assert out["has_more"] is True
     assert main(["list", "--since", "2999-01-01", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["recordings"] == []
 
@@ -91,13 +95,15 @@ def test_list_limit_and_since(rt, capsys):
 def test_list_bad_args_are_user_errors(rt, capsys, args):
     assert main(["list", *args]) == 1
     err = capsys.readouterr().err
-    assert err.startswith("error:") and "hint:" in err
+    assert err.startswith("error:")
+    assert "hint:" in err
 
 
 def test_list_text_mode(rt, capsys):
     assert main(["list"]) == 0
     out = capsys.readouterr().out
-    assert "r0001" in out and "not synced" in out
+    assert "r0001" in out
+    assert "not synced" in out
 
 
 def test_list_without_mongo_reports_unknown_status(tmp_path, monkeypatch, capsys):

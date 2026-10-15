@@ -60,19 +60,24 @@ def test_one_doc_per_recording_with_content_fields(sink, db):
     r = rec()
     files = FileSet(summary_md=FileRef("2026/05/r1/summary.md", 3, "ab"))
     res = sink.put_recording(r, files)
-    assert res.changed and res.content_hash == r.content_hash()
+    assert res.changed
+    assert res.content_hash == r.content_hash()
     assert db[vindex.COLLECTION].count_documents({}) == 1
     d = doc(db)
-    assert d["title"] == "Title" and d[vindex.PATH_RECORDING_AT] == "2026-05-01T10:00:00Z"
-    assert d["segments"][0]["text"] == "hi" and d["action_items"][0]["text"] == "do it"
+    assert d["title"] == "Title"
+    assert d[vindex.PATH_RECORDING_AT] == "2026-05-01T10:00:00Z"
+    assert d["segments"][0]["text"] == "hi"
+    assert d["action_items"][0]["text"] == "do it"
     assert d["content_hash"] == r.content_hash()
     assert d["files"]["summary_md"]["rel_path"] == "2026/05/r1/summary.md"
     assert d["landed_at"] == d["updated_at"]
-    assert d[vindex.PATH_DELETED] is False and d["merged_into"] is None
+    assert d[vindex.PATH_DELETED] is False
+    assert d["merged_into"] is None
     assert d["enrichment"]["status"] == ENRICHMENT_PENDING
     # Pocket's own timestamps live under source; raw wire data is not stored.
     assert d["source"] == {"created_at": "2026-05-01T10:59:00Z", "updated_at": r.updated_at}
-    assert "raw" not in d and "fetched_at" not in d
+    assert "raw" not in d
+    assert "fetched_at" not in d
 
 
 def test_identical_redelivery_is_noop(sink, db):
@@ -105,7 +110,8 @@ def test_content_change_resets_enrichment(sink, db):
     res = sink.put_recording(rec(summary="new summary"))
     assert res.changed
     d = doc(db)
-    assert d["summary"] == "new summary" and d["content_hash"] != h1
+    assert d["summary"] == "new summary"
+    assert d["content_hash"] != h1
     assert d["updated_at"] != first["updated_at"]
     assert d["landed_at"] == first["landed_at"]
     enr = d["enrichment"]
@@ -120,7 +126,8 @@ def test_content_change_keeps_tombstone_and_merge(sink, db):
     sink.mark_merged("r1", "r0", "2026-06-02T00:00:00Z")
     sink.put_recording(rec(summary="changed"))
     st = sink.get_state("r1")
-    assert st.deleted_in_pocket and st.merged_into == "r0"
+    assert st.deleted_in_pocket
+    assert st.merged_into == "r0"
 
 
 def test_set_enrichment_cas(sink, db):
@@ -130,7 +137,8 @@ def test_set_enrichment_cas(sink, db):
     assert "model" not in doc(db)["enrichment"]
     assert sink.set_enrichment("r1", h, {"status": "done", "model": "m", "dims": 2}) is True
     d = doc(db)
-    assert d["enrichment"]["model"] == "m" and d["enrichment"]["status"] == "done"
+    assert d["enrichment"]["model"] == "m"
+    assert d["enrichment"]["status"] == "done"
     assert sink.set_enrichment("missing", h, {"status": "done"}) is False
 
 
@@ -159,7 +167,8 @@ def test_enrichment_race_content_changes_mid_flight(sink, db):
     )
     assert ok is False
     enr = doc(db)["enrichment"]
-    assert enr["status"] == ENRICHMENT_PENDING and "summary_vector" not in enr
+    assert enr["status"] == ENRICHMENT_PENDING
+    assert "summary_vector" not in enr
 
 
 def test_set_enrichment_error_counts_attempts(sink, db):
@@ -168,7 +177,9 @@ def test_set_enrichment_error_counts_attempts(sink, db):
     assert sink.set_enrichment_error("r1", h, "boom")
     assert sink.set_enrichment_error("r1", h, "boom again")
     enr = doc(db)["enrichment"]
-    assert enr["status"] == "error" and enr["error"] == "boom again" and enr["attempts"] == 2
+    assert enr["status"] == "error"
+    assert enr["error"] == "boom again"
+    assert enr["attempts"] == 2
     assert sink.set_enrichment_error("r1", "stale", "x") is False
 
 
@@ -187,9 +198,12 @@ def test_tombstone_and_merge_never_delete(sink, db):
     sink.tombstone("r1", "2026-06-01T00:00:00Z")
     sink.mark_merged("r2", "r1", "2026-06-02T00:00:00Z")
     d1, d2 = doc(db, "r1"), doc(db, "r2")
-    assert d1[vindex.PATH_DELETED] is True and d1["deleted_at"] == "2026-06-01T00:00:00Z"
-    assert d2["merged_into"] == "r1" and d2["merged_at"] == "2026-06-02T00:00:00Z"
-    assert d1["title"] == "Title" and d2["segments"]
+    assert d1[vindex.PATH_DELETED] is True
+    assert d1["deleted_at"] == "2026-06-01T00:00:00Z"
+    assert d2["merged_into"] == "r1"
+    assert d2["merged_at"] == "2026-06-02T00:00:00Z"
+    assert d1["title"] == "Title"
+    assert d2["segments"]
     assert db[vindex.COLLECTION].count_documents({}) == 2
 
 

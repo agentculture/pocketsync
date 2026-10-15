@@ -118,7 +118,8 @@ def test_no_audio_pass_does_not_reland_unchanged_text_only_recordings(tmp_path):
     env = Env(tmp_path, [rec(1)])
     env.rc(with_audio=False).reconcile()
     second = env.rc(with_audio=False).reconcile()
-    assert second.skipped == 1 and second.landed == 0
+    assert second.skipped == 1
+    assert second.landed == 0
 
 
 def test_audio_on_disk_skips_the_audio_url_and_the_redownload(tmp_path):
@@ -128,7 +129,8 @@ def test_audio_on_disk_skips_the_audio_url_and_the_redownload(tmp_path):
     env.src.edit("r0001", summary="Pocket re-processed the summary.")
     before = env.src.calls.count("get_audio_url")
     res = land("r0001", env.src, files_sink=env.local, store_sink=env.mongo)
-    assert res.files_changed and res.store_changed
+    assert res.files_changed
+    assert res.store_changed
     assert env.src.calls.count("get_audio_url") == before  # no new signed URL
     assert len(env.opener.urls) == 1  # audio is immutable; not downloaded again
     assert env.has_audio("r0001")
@@ -141,7 +143,8 @@ def test_equivalent_timestamp_formats_are_not_a_change(tmp_path):
         {"_id": "r0001"}, {"$set": {"source.updated_at": "2026-10-13T10:00:01+00:00"}}
     )
     second = env.rc().reconcile()
-    assert second.skipped == 1 and second.landed == 0
+    assert second.skipped == 1
+    assert second.landed == 0
 
 
 def test_missing_listed_updated_at_is_never_treated_as_unchanged(tmp_path):

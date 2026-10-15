@@ -39,7 +39,9 @@ def test_toml_file_and_env_precedence(tmp_path):
     p = tmp_path / "c.toml"
     p.write_text('api_key = "from-file"\nwebhook_port = 9999\nreconcile_interval = 60\n')
     s = load(env={}, config_path=p)
-    assert s.api_key == "from-file" and s.webhook_port == 9999 and s.reconcile_interval == 60
+    assert s.api_key == "from-file"
+    assert s.webhook_port == 9999
+    assert s.reconcile_interval == 60
     s = load(env={"POCKETSYNC_API_KEY": "from-env"}, config_path=p)
     assert s.api_key == "from-env"
 
@@ -56,7 +58,8 @@ def test_bad_config_file_raises_cli_error(tmp_path):
     p.write_text("not = = toml")
     with pytest.raises(CliError) as e:
         load(env={}, config_path=p)
-    assert e.value.code == 2 and e.value.remediation
+    assert e.value.code == 2
+    assert e.value.remediation
     with pytest.raises(CliError):
         load(env={}, config_path=tmp_path / "missing.toml")
 
@@ -66,7 +69,8 @@ def test_require_missing_raises_code_2_with_hint():
     with pytest.raises(CliError) as e:
         s.require("api_key", "mongo_uri")
     assert e.value.code == 2
-    assert "POCKETSYNC_API_KEY" in e.value.message and "POCKETSYNC_MONGO_URI" in e.value.message
+    assert "POCKETSYNC_API_KEY" in e.value.message
+    assert "POCKETSYNC_MONGO_URI" in e.value.message
     assert "POCKETSYNC_API_KEY" in e.value.remediation
 
 

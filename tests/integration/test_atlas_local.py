@@ -144,7 +144,8 @@ def test_summary_vector_search_with_label_filter(sink: MongoSink) -> None:
     unfiltered = _eventually(
         lambda: _search(col, vindex.SUMMARY_INDEX, vindex.PATH_SUMMARY_VECTOR, query, None)
     )
-    assert unfiltered and unfiltered[0]["_id"] == "it-1"
+    assert unfiltered
+    assert unfiltered[0]["_id"] == "it-1"
     flt = {vindex.PATH_LABELS: "beta"}
     hits = _eventually(
         lambda: _search(col, vindex.SUMMARY_INDEX, vindex.PATH_SUMMARY_VECTOR, query, flt)
@@ -162,7 +163,8 @@ def test_chunk_vector_search_nested_root(sink: MongoSink) -> None:
     hits = _eventually(
         lambda: _search(col, vindex.CHUNK_INDEX, vindex.PATH_CHUNK_VECTOR, _vec(30), None)
     )
-    assert hits and hits[0]["_id"] == "it-3"
+    assert hits
+    assert hits[0]["_id"] == "it-3"
 
 
 def test_chunk_vector_search_with_parent_label_filter(sink: MongoSink) -> None:
@@ -183,4 +185,5 @@ def test_chunk_vector_search_with_parent_label_filter(sink: MongoSink) -> None:
             filter_key="parentFilter",
         )
     )
-    assert hits and hits[0]["_id"] == "it-3"
+    assert hits
+    assert hits[0]["_id"] == "it-3"

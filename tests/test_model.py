@@ -40,7 +40,10 @@ def test_round_trip():
 
 def test_from_dict_tolerates_missing_optionals():
     r = Recording.from_dict({"id": "x"})
-    assert r.id == "x" and r.segments == [] and r.tags == [] and r.raw == {}
+    assert r.id == "x"
+    assert r.segments == []
+    assert r.tags == []
+    assert r.raw == {}
 
 
 def test_hash_stable_across_key_order():
@@ -75,4 +78,5 @@ def test_hash_ignores_raw_wire_payload():
 
 def test_hash_is_sha256_hex():
     h = content_hash(_rec())
-    assert len(h) == 64 and int(h, 16) >= 0
+    assert len(h) == 64
+    assert int(h, 16) >= 0

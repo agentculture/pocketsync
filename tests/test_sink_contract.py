@@ -44,10 +44,12 @@ def test_unknown_state_is_none(sink):
 def test_put_then_state(sink):
     r = rec()
     res = sink.put_recording(r)
-    assert res.changed and res.content_hash == r.content_hash()
+    assert res.changed
+    assert res.content_hash == r.content_hash()
     st = sink.get_state("c1")
     assert st.content_hash == res.content_hash
-    assert not st.deleted_in_pocket and st.merged_into is None
+    assert not st.deleted_in_pocket
+    assert st.merged_into is None
 
 
 def test_idempotent_and_update(sink):

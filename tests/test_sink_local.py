@@ -172,10 +172,12 @@ def test_unchanged_is_noop_and_changed_rewrites(tmp_path):
     meta = tmp_path / "2026/03/rec1/meta.json"
     mtime = meta.stat().st_mtime_ns
     r2 = sink.put_recording(make_rec(fetched_at="2030-01-01T00:00:00Z"))
-    assert r1.changed and not r2.changed
+    assert r1.changed
+    assert not r2.changed
     assert meta.stat().st_mtime_ns == mtime
     r3 = sink.put_recording(make_rec(summary="new"))
-    assert r3.changed and r3.content_hash != r1.content_hash
+    assert r3.changed
+    assert r3.content_hash != r1.content_hash
     assert "new" in (tmp_path / "2026/03/rec1/summary.md").read_text()
 
 
@@ -199,7 +201,8 @@ def test_tombstone_and_merge_keep_files(tmp_path):
     sink.tombstone("a", "2026-04-01T00:00:00Z")
     sink.mark_merged("a", "b", "2026-04-02T00:00:00Z")
     st = sink.get_state("a")
-    assert st.deleted_in_pocket and st.merged_into == "b"
+    assert st.deleted_in_pocket
+    assert st.merged_into == "b"
     assert (tmp_path / "2026/03/a/transcript.json").exists()
     # a later re-put keeps the flags
     sink.put_recording(make_rec("a", summary="changed"))

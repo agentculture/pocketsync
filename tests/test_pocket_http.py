@@ -67,8 +67,10 @@ def test_get_recording_maps_and_sends_auth():
     assert "include_transcript=true" in req.full_url
     assert req.get_header("Authorization") == "Bearer pk_test"
     assert m.call_args[1]["timeout"] > 0
-    assert rec.state == "some-new-state" and rec.tags == ["work"]
-    assert rec.segments[0].speaker_name == "Ann" and rec.segments[0].end == 1.5
+    assert rec.state == "some-new-state"
+    assert rec.tags == ["work"]
+    assert rec.segments[0].speaker_name == "Ann"
+    assert rec.segments[0].end == 1.5
     assert rec.summary == "# Sum"
     assert [(a.text, a.done) for a in rec.action_items] == [("do it", True), ("plain", False)]
     assert rec.raw["id"] == "rec1"
@@ -83,8 +85,12 @@ def test_list_recordings_page():
     with mock.patch(TARGET, return_value=_ok(body)) as m:
         page = _src().list_recordings("2026-01-01", "2026-01-31", page=2, limit=1)
     url = m.call_args[0][0].full_url
-    assert "start_date=2026-01-01" in url and "page=2" in url and "limit=1" in url
-    assert page.has_more and page.total == 5 and page.page == 2
+    assert "start_date=2026-01-01" in url
+    assert "page=2" in url
+    assert "limit=1" in url
+    assert page.has_more
+    assert page.total == 5
+    assert page.page == 2
     assert page.recordings[0].id == "rec1"
 
 
@@ -110,7 +116,8 @@ def test_401_is_auth_clierror_without_key_leak():
         with pytest.raises(CliError) as ei:
             _src().list_recordings()
     assert not isinstance(ei.value, RateLimited)
-    assert "API key" in ei.value.message and "pk_test" not in repr(ei.value.to_dict())
+    assert "API key" in ei.value.message
+    assert "pk_test" not in repr(ei.value.to_dict())
     assert "pk_test" not in repr(_src())
 
 
@@ -145,5 +152,7 @@ def test_map_defensive_alternate_keys():
             "transcript": None,
         }
     )
-    assert rec.summary == "M" and rec.action_items[0].text == "x" and rec.segments == []
+    assert rec.summary == "M"
+    assert rec.action_items[0].text == "x"
+    assert rec.segments == []
     assert _map_recording({"id": "b"}).summary == ""

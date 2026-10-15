@@ -350,7 +350,8 @@ def test_safe_mongo_uri_is_not_flagged(tmp_path: Path, uri: str) -> None:
 
 def test_mongo_uri_finding_never_echoes_the_password(tmp_path: Path) -> None:
     findings = _scan_text(tmp_path, "a.txt", "mongodb://admin:SuperSecretPw99@localhost/db\n")
-    assert findings and "SuperSecretPw99" not in str(findings[0])
+    assert findings
+    assert "SuperSecretPw99" not in str(findings[0])
 
 
 def test_synthetic_loopback_creds_allowed_only_under_tests() -> None:

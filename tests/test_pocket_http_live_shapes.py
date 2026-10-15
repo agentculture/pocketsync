@@ -97,7 +97,8 @@ def test_live_action_items_under_actions_are_mapped():
 def test_live_summary_segments_and_speakers():
     rec = _map_recording(LIVE_DETAIL)
     assert rec.summary == "# Synthetic summary"
-    assert rec.segments[0].speaker_name == "Alex" and rec.segments[0].end == 2.5
+    assert rec.segments[0].speaker_name == "Alex"
+    assert rec.segments[0].end == 2.5
     assert rec.speakers == ["Alex"]
 
 

@@ -41,7 +41,8 @@ def _factory(event):
 def test_append_schema_and_dedupe(tmp_path):
     box = Outbox(tmp_path)
     ev = _emit(box)
-    assert ev["type"] == EVENT_TYPE and ev["change"] == "created"
+    assert ev["type"] == EVENT_TYPE
+    assert ev["change"] == "created"
     assert ev["sinks"]["mongo"] == {"collection": "recordings", "doc_id": "r1"}
     assert ev["enrichment"]["labels"] == ["meeting"]
     assert _emit(box) is None
@@ -75,7 +76,8 @@ def test_drain_publishes_qos1_and_is_idempotent(tmp_path):
     s = pub.drain()
     assert (s.published, s.pending) == (2, 0)
     assert [q for _, _, q in client.calls] == [1, 1]
-    assert pub.drain().published == 0 and len(client.calls) == 2
+    assert pub.drain().published == 0
+    assert len(client.calls) == 2
 
 
 def test_broker_down_leaves_pending_then_publishes(tmp_path):
@@ -83,7 +85,8 @@ def test_broker_down_leaves_pending_then_publishes(tmp_path):
     _emit(box)
     _emit(box, rid="r2")
     down = OutboxPublisher(tmp_path, FakeClient(raises=True), _factory).drain()
-    assert (down.published, down.pending) == (0, 2) and down.error
+    assert (down.published, down.pending) == (0, 2)
+    assert down.error
     partial = OutboxPublisher(tmp_path, FakeClient(fail_after=1), _factory).drain()
     assert (partial.published, partial.pending) == (1, 1)
     client = FakeClient()
@@ -124,7 +127,9 @@ def test_drain_waits_for_connection_then_publishes(tmp_path):
     client = ConnectingClient(polls=3)
     s = OutboxPublisher(tmp_path, client, _factory, sleep=lambda _: None).drain()
     assert (s.published, s.pending, s.error) == (1, 0, None)
-    assert client.reads > 3 and client.calls[0][2] == 1 and client.waits[0] > 0
+    assert client.reads > 3
+    assert client.calls[0][2] == 1
+    assert client.waits[0] > 0
 
 
 def test_never_connects_times_out_pending_with_error(tmp_path):
@@ -140,5 +145,7 @@ def test_never_connects_times_out_pending_with_error(tmp_path):
     )
     s = pub.drain()
     assert (s.published, s.pending) == (0, 1)
-    assert s.error and "not connected" in s.error and not client.calls
+    assert s.error
+    assert "not connected" in s.error
+    assert not client.calls
     assert OutboxPublisher(tmp_path, FakeClient(), _factory).drain().published == 1
