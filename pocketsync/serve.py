@@ -259,8 +259,10 @@ class Service:
             self.stats[key] += 1
 
     def _land(self, rid: str) -> None:
-        land(rid, self.source, files_sink=self.files_sink, store_sink=self.store_sink)
+        landing = land(rid, self.source, files_sink=self.files_sink, store_sink=self.store_sink)
         self._bump("landed")
+        if landing.audio_error:
+            self._error(f"{rid}: audio: {landing.audio_error}")
 
     def handle(self, rid: str | None, event_type: str, payload: dict[str, Any]) -> bool:
         """Route one webhook event; True when handled. Never raises: failures are recorded."""

@@ -232,7 +232,9 @@ class LocalSink:
         *,
         dry_run: bool = False,
         audio_url: str | None = None,
+        audio_absent: bool = False,
     ) -> PutResult:
+        """``audio_absent`` records that Pocket has no audio file, so it is not re-requested."""
         self._check_id(rec.id)
         chash = rec.content_hash()
         existing = self._read_meta(rec.id)
@@ -243,6 +245,11 @@ class LocalSink:
             same = meta.get("content_hash") == chash
             need_audio = audio_url is not None and fs.audio is None
             if same and not need_audio:
+                if not dry_run and bool(meta.get("audio_absent")) != (
+                    audio_absent and not fs.audio
+                ):
+                    meta["audio_absent"] = audio_absent and not fs.audio
+                    self._write_meta(d, meta)  # a bookkeeping flag only; content unchanged
                 return PutResult(False, chash, locs, fs)
         else:
             y, m = self._year_month(rec)
@@ -298,6 +305,7 @@ class LocalSink:
             "merged_into": meta.get("merged_into"),
             "merged_at": meta.get("merged_at"),
             "files": {k: v for k, v in fs.to_dict().items() if k != "meta"},
+            "audio_absent": bool(audio_absent and fs.audio is None),
         }
         fs = replace(fs, meta=self._write_meta(d, new_meta))  # meta.json last
         return PutResult(True, chash, locs, fs)
@@ -312,6 +320,7 @@ class LocalSink:
             deleted_in_pocket=bool(meta.get("deleted_in_pocket", False)),
             merged_into=meta.get("merged_into"),
             has_audio=bool((meta.get("files") or {}).get("audio")),
+            audio_absent=bool(meta.get("audio_absent", False)),
         )
 
     def _update_meta(self, recording_id: str, **fields: Any) -> None:

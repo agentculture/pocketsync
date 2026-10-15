@@ -78,6 +78,7 @@ class RecordState:
     deleted_in_pocket: bool = False
     merged_into: str | None = None
     has_audio: bool = False
+    audio_absent: bool = False  # Pocket said it has no audio file (until it changes the recording)
 
 
 @runtime_checkable

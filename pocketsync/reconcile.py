@@ -308,6 +308,8 @@ class Reconciler:
             return
         result.landed += 1
         result.planned.extend(landing.planned)
+        if landing.audio_error and not self.dry_run:
+            self.state.record_error(where, f"{item.id}: audio: {landing.audio_error}")
         if count and not exists and self._older_than_grace(item, now):
             result.missed += 1
             self.state.increment(COUNTER_WEBHOOK_MISSED)
@@ -317,7 +319,7 @@ class Reconciler:
         if not self.with_audio:
             return False
         fstate = self.files_sink.get_state(recording_id)
-        return not (fstate and fstate.has_audio)
+        return not (fstate and (fstate.has_audio or fstate.audio_absent))
 
     def _stored(self, recording_id: str) -> tuple[bool, str | None]:
         """(has a doc, its Pocket ``source.updated_at``) without any Pocket call."""

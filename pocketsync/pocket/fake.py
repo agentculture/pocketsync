@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from pocketsync.cli._errors import EXIT_USER_ERROR, CliError
 from pocketsync.model import Recording
-from pocketsync.pocket.base import MAX_PAGE_LIMIT, RateLimited, RecordingPage
+from pocketsync.pocket.base import MAX_PAGE_LIMIT, AudioNotFound, RateLimited, RecordingPage
 
 
 def _now() -> str:
@@ -22,6 +22,7 @@ class FakePocketSource:
         self.deleted: set[str] = set()
         self.merged: dict[str, str] = {}  # src id -> dst id
         self.calls: list[str] = []
+        self.no_audio: set[str] = set()  # ids Pocket has no audio file for (404)
         self._rate_limit_calls = 0
         self._retry_after: float | None = None
         self._clock = 0
@@ -124,4 +125,6 @@ class FakePocketSource:
         self._require(recording_id)
         if not 60 <= expires_in <= 86400:
             raise CliError(EXIT_USER_ERROR, "expires_in must be 60..86400", "Adjust expires_in.")
+        if recording_id in self.no_audio:
+            raise AudioNotFound("recording audio file not found")
         return f"http://localhost/audio/{recording_id}?expires_in={expires_in}"

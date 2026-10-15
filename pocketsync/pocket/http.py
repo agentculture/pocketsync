@@ -17,7 +17,13 @@ from typing import Any
 
 from pocketsync.cli._errors import EXIT_ENV_ERROR, EXIT_USER_ERROR, CliError
 from pocketsync.model import ActionItem, Recording, TranscriptSegment
-from pocketsync.pocket.base import MAX_PAGE_LIMIT, RateLimited, RecordingPage
+from pocketsync.pocket.base import (
+    MAX_PAGE_LIMIT,
+    AudioNotFound,
+    NotFound,
+    RateLimited,
+    RecordingPage,
+)
 
 BASE_URL = "https://public.heypocketai.com/api/v1/public"
 DEFAULT_TIMEOUT = 30.0
@@ -273,9 +279,7 @@ class PocketHttpSource:
                 "Check the Pocket API key (pk_...) and regenerate it if needed.",
             ) from exc
         if exc.code == 404:
-            raise CliError(
-                EXIT_USER_ERROR, f"Pocket resource not found{suffix}", "Check the recording id."
-            ) from exc
+            raise NotFound(f"Pocket resource not found{suffix}") from exc
         raise CliError(EXIT_ENV_ERROR, f"Pocket HTTP {exc.code}{suffix}", _RETRY_LATER) from exc
 
     @staticmethod
@@ -340,9 +344,11 @@ class PocketHttpSource:
         if not 60 <= expires_in <= 86400:
             raise CliError(EXIT_USER_ERROR, "expires_in must be 60..86400", "Adjust expires_in.")
         rid = urllib.parse.quote(recording_id, safe="")
-        payload = self._unwrap(
-            self._get(f"/recordings/{rid}/audio-url", {"expires_in": expires_in})
-        )
+        try:
+            raw = self._get(f"/recordings/{rid}/audio-url", {"expires_in": expires_in})
+        except NotFound as exc:
+            raise AudioNotFound(exc.message) from exc
+        payload = self._unwrap(raw)
         data = payload.get("data")
         if isinstance(data, dict):  # live API: {signed_url, expires_in, expires_at}
             data = (

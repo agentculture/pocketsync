@@ -279,8 +279,12 @@ Same content as a directory tree, per `pocketsync/sinks/local.py`:
 `meta.json` last, so a reader that sees `meta.json` never sees a half-written
 recording. `meta.json` carries `id`, `title`, `created_at`, `updated_at`,
 `recording_at`, `duration`, `language`, `content_hash`, `synced_at`,
-`deleted_in_pocket`, `deleted_at`, `merged_into`, `merged_at` and `files`
-(refs as above, without `meta`).
+`deleted_in_pocket`, `deleted_at`, `merged_into`, `merged_at`, `files`
+(refs as above, without `meta`) and `audio_absent`. `audio_absent: true` means
+Pocket reported it has no audio file for the recording (`404 recording audio
+file not found`). The reconciler then stops requesting audio until Pocket
+changes the recording. Any other audio failure is recorded in
+`sync_state.errors` and retried on the next pass.
 
 ## Events contract
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
-from pocketsync.cli._errors import EXIT_ENV_ERROR, CliError
+from pocketsync.cli._errors import EXIT_ENV_ERROR, EXIT_USER_ERROR, CliError
 from pocketsync.model import Recording
 
 MAX_PAGE_LIMIT = 100
@@ -28,6 +28,21 @@ class RateLimited(CliError):
             remediation="Wait and retry; lower the sync frequency.",
         )
         self.retry_after = retry_after
+
+
+class NotFound(CliError):
+    """HTTP 404 from Pocket."""
+
+    def __init__(self, message: str = "Pocket resource not found") -> None:
+        super().__init__(code=EXIT_USER_ERROR, message=message, remediation="Check the id.")
+
+
+class AudioNotFound(NotFound):
+    """Pocket has no audio file for this recording (404 on the audio-url endpoint).
+
+    This is a fact about the recording, not a transient failure, so it is recorded and not
+    retried until Pocket changes the recording.
+    """
 
 
 @dataclass

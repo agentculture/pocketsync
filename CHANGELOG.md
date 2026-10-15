@@ -35,6 +35,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Reconciler: change detection compares timestamps format-insensitively and never treats a missing updated_at as unchanged
 - Events: sinks.mongo carries doc_id as documented (was id)
 - Events: the envelope source is `agent://pocketsync`; events-cli rejects a bare name, so every publish had been refused (found by the first live backfill)
+- Audio Pocket does not have (404 on audio-url) is recorded as `audio_absent` and no longer retried every pass; other audio failures are logged to `sync_state.errors` (found by the first live backfill)
 - Enrichment: gateway 429/500/502/504 are retried instead of marking the doc as error; serve re-queues docs classified under a stale taxonomy at start
 - Docs: CLAUDE.md, the three sibling harness files and the README now describe what is built instead of a scaffold
 

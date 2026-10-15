@@ -206,3 +206,13 @@ def test_expired_throttle_does_not_wait():
     now[0] = 1021.0
     src._await_window()
     assert slept == []
+
+
+def test_audio_url_404_is_audio_not_found():
+    from pocketsync.pocket.base import AudioNotFound
+
+    body = io.BytesIO(b'{"success": false, "error": "recording audio file not found"}')
+    err = urllib.error.HTTPError("u", 404, "x", {}, body)
+    with mock.patch(TARGET, side_effect=err):
+        with pytest.raises(AudioNotFound):
+            PocketHttpSource("pk_test").get_audio_url("rec-1", expires_in=60)

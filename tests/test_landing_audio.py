@@ -154,3 +154,45 @@ def test_missing_listed_updated_at_is_never_treated_as_unchanged(tmp_path):
     env.rc().reconcile()
     doc = env.mongo.collection.find_one({"_id": "r0001"})
     assert "Changed while" in doc["summary"]
+
+
+# -- audio Pocket does not have (live finding 2026-10-15: 404 "recording audio file not found")
+
+
+def test_recording_without_audio_in_pocket_is_not_retried_every_pass(tmp_path):
+    env = Env(tmp_path, [rec(1)])
+    env.src.no_audio.add("r0001")
+    first = env.rc().reconcile()
+    assert first.landed == 1 and first.ok
+    st = env.local.get_state("r0001")
+    assert st.audio_absent and not st.has_audio
+    calls = env.src.calls.count("get_audio_url")
+    second = env.rc().reconcile()
+    assert second.skipped == 1 and second.landed == 0
+    assert env.src.calls.count("get_audio_url") == calls  # no retry while Pocket is unchanged
+    assert env.state.errors() == []  # absent audio is a fact, not an error
+
+
+def test_absent_audio_is_retried_when_pocket_updates_the_recording(tmp_path):
+    env = Env(tmp_path, [rec(1)])
+    env.src.no_audio.add("r0001")
+    env.rc().reconcile()
+    env.src.no_audio.discard("r0001")
+    env.src.edit("r0001", summary="Pocket attached the audio later.")
+    env.rc().reconcile()
+    st = env.local.get_state("r0001")
+    assert st.has_audio and not st.audio_absent
+
+
+def test_transient_audio_failure_is_recorded_as_an_error(tmp_path, monkeypatch):
+    from pocketsync.cli._errors import CliError
+
+    env = Env(tmp_path, [rec(1)])
+
+    def boom(*a, **kw):
+        raise CliError(2, "Pocket HTTP 503", "Retry later.")
+
+    monkeypatch.setattr(env.src, "get_audio_url", boom)
+    env.rc().reconcile()
+    assert any("audio" in e["message"] for e in env.state.errors())
+    assert not env.local.get_state("r0001").audio_absent  # transient: retried next pass
