@@ -87,7 +87,8 @@ def test_mongo_state_survives_restart(db):
 
     s2 = MongoStateStore(db)  # fresh process, same database
     assert s2.get_watermark() == "2026-05-01T00:00:00Z"
-    assert s2.seen("evt-1") and s2.mark_seen("evt-1") is False
+    assert s2.seen("evt-1")
+    assert s2.mark_seen("evt-1") is False
     assert s2.last_run() == {"started": "a", "finished": "b", "stats": {"n": 1}}
     assert s2.errors()[-1]["message"] == "bad sig"
     assert s2.counters() == {COUNTER_WEBHOOK_MISSED: 1}

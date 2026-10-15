@@ -69,7 +69,9 @@ def test_land_writes_files_and_doc(tmp_path):
     src = FakePocketSource([make_rec()])
     local, mongo = stores(tmp_path)
     res = land("r1", src, files_sink=local, store_sink=mongo)
-    assert res.files_changed and res.store_changed and not res.audio_missing
+    assert res.files_changed
+    assert res.store_changed
+    assert not res.audio_missing
     doc = mongo.collection.find_one({"_id": "r1"})
     assert doc["files"]["audio"]["size"] == len(AUDIO)
     assert doc["files"]["transcript_md"]["rel_path"].endswith("transcript.md")
@@ -96,7 +98,8 @@ def test_reland_is_noop(tmp_path):
     land("r1", src, files_sink=local, store_sink=mongo)
     before = mongo.collection.find_one({"_id": "r1"})
     res = land("r1", src, files_sink=local, store_sink=mongo)
-    assert not res.files_changed and not res.store_changed
+    assert not res.files_changed
+    assert not res.store_changed
     assert mongo.collection.find_one({"_id": "r1"}) == before  # meta ref not clobbered
 
 
@@ -105,9 +108,11 @@ def test_audio_url_failure_lands_text_and_flags(tmp_path):
     src.get_audio_url = lambda *a, **k: (_ for _ in ()).throw(CliError(EXIT_ENV_ERROR, "boom", "x"))
     local, mongo = stores(tmp_path)
     res = land("r1", src, files_sink=local, store_sink=mongo)
-    assert res.audio_missing and "boom" in res.audio_error
+    assert res.audio_missing
+    assert "boom" in res.audio_error
     doc = mongo.collection.find_one({"_id": "r1"})
-    assert doc["files"]["audio"] is None and doc["files"]["transcript_md"]
+    assert doc["files"]["audio"] is None
+    assert doc["files"]["transcript_md"]
     # a later landing picks the audio up
     del src.get_audio_url
     res2 = land("r1", src, files_sink=local, store_sink=mongo)
@@ -119,8 +124,10 @@ def test_dry_run_plans_without_writing(tmp_path):
     src = FakePocketSource([make_rec()])
     local, mongo = stores(tmp_path)
     res = land("r1", src, files_sink=local, store_sink=mongo, dry_run=True)
-    assert res.dry_run and res.planned
-    assert any("files" in p for p in res.planned) and any("store" in p for p in res.planned)
+    assert res.dry_run
+    assert res.planned
+    assert any("files" in p for p in res.planned)
+    assert any("store" in p for p in res.planned)
     assert mongo.collection.count_documents({}) == 0
     assert not list((tmp_path / "a").rglob("*.md"))
     assert "get_audio_url" not in src.calls
@@ -146,7 +153,8 @@ def test_delete_and_merge_tombstone_only(tmp_path):
     assert mongo.get_state("r2").merged_into == "r1"
     assert local.get_state("r1").deleted_in_pocket
     assert local.get_state("r2").merged_into == "r1"
-    assert d1["files"]["transcript_md"] and d2["files"]["transcript_md"]
+    assert d1["files"]["transcript_md"]
+    assert d2["files"]["transcript_md"]
     assert len(list((tmp_path / "a").rglob("transcript.md"))) == 2
 
 

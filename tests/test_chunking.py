@@ -18,8 +18,10 @@ def test_over_8192_tokens_yields_multiple_chunks():
 
 def test_times_and_segment_ranges_preserved():
     chunks = chunk_segments(_segs(40), max_tokens=100)
-    assert chunks[0].start == 0.0 and chunks[0].first_segment == 0
-    assert chunks[-1].end == 39.9 and chunks[-1].last_segment == 39
+    assert chunks[0].start == 0.0
+    assert chunks[0].first_segment == 0
+    assert chunks[-1].end == 39.9
+    assert chunks[-1].last_segment == 39
     for a, b in zip(chunks, chunks[1:]):
         assert b.first_segment == a.last_segment + 1
         assert [c.index for c in chunks] == list(range(len(chunks)))
@@ -27,7 +29,8 @@ def test_times_and_segment_ranges_preserved():
 
 def test_speaker_prefix_and_small_input_single_chunk():
     chunks = chunk_segments([{"text": "hi", "start": 1, "end": 2, "speaker": "Bob"}])
-    assert len(chunks) == 1 and chunks[0].text == "Bob: hi"
+    assert len(chunks) == 1
+    assert chunks[0].text == "Bob: hi"
     assert chunks[0].to_dict()["segments"] == [0, 0]
 
 

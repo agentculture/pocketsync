@@ -22,6 +22,7 @@ from pocketsync.pocket.base import MAX_PAGE_LIMIT, RateLimited, RecordingPage
 BASE_URL = "https://public.heypocketai.com/api/v1/public"
 DEFAULT_TIMEOUT = 30.0
 MAX_THROTTLE_SECONDS = 120.0
+_RETRY_LATER = "Retry later."
 
 
 def _as_str_list(value: Any) -> list[str]:
@@ -36,55 +37,65 @@ def _as_str_list(value: Any) -> list[str]:
     return out
 
 
-def _find_summary(summ: Any) -> str:
-    """Pull summary markdown out of ``summarizations`` (shape not fully documented)."""
-    if isinstance(summ, str):
-        return summ
-    if isinstance(summ, list):
-        for item in summ:
-            found = _find_summary(item)
-            if found:
-                return found
-        return ""
-    if not isinstance(summ, dict):
-        return ""
+def _first(items: Any, finder: Callable[[Any], Any]) -> Any:
+    """The first truthy ``finder(item)`` over ``items``, else None."""
+    for item in items:
+        found = finder(item)
+        if found:
+            return found
+    return None
+
+
+def _nested(d: dict[str, Any]) -> list[Any]:
+    """The dict and list values of ``d``, in order (the places a deeper search looks)."""
+    return [v for v in d.values() if isinstance(v, (dict, list))]
+
+
+def _summary_here(summ: dict[str, Any]) -> str | None:
+    """Summary markdown at a known path in ``summ``; None means "search deeper".
+
+    A plain ``summary`` string, even an empty one, ends the search.
+    """
     for path in (("v2", "summary", "markdown"), ("summary", "markdown"), ("markdown",)):
         cur: Any = summ
         for key in path:
             cur = cur.get(key) if isinstance(cur, dict) else None
         if isinstance(cur, str) and cur:
             return cur
-    if isinstance(summ.get("summary"), str):
-        return summ["summary"]
-    for value in summ.values():
-        if isinstance(value, (dict, list)):
-            found = _find_summary(value)
-            if found:
-                return found
-    return ""
+    plain = summ.get("summary")
+    return plain if isinstance(plain, str) else None
 
 
-def _find_action_items(summ: Any) -> list[Any]:
+def _find_summary(summ: Any) -> str:
+    """Pull summary markdown out of ``summarizations`` (shape not fully documented)."""
+    if isinstance(summ, str):
+        return summ
     if isinstance(summ, list):
-        for item in summ:
-            found = _find_action_items(item)
-            if found:
-                return found
-        return []
+        return _first(summ, _find_summary) or ""
     if not isinstance(summ, dict):
-        return []
+        return ""
+    here = _summary_here(summ)
+    if here is not None:
+        return here
+    return _first(_nested(summ), _find_summary) or ""
+
+
+def _action_items_here(summ: dict[str, Any]) -> list[Any] | None:
     for key in ("actionItems", "action_items"):
         val = summ.get(key)
         if isinstance(val, dict):  # live API: v2.actionItems.actions (verified 2026-10-14)
             val = val.get("actions") or val.get("items")
         if isinstance(val, list) and val:
             return val
-    for value in summ.values():
-        if isinstance(value, (dict, list)):
-            found = _find_action_items(value)
-            if found:
-                return found
-    return []
+    return None
+
+
+def _find_action_items(summ: Any) -> list[Any]:
+    if isinstance(summ, list):
+        return _first(summ, _find_action_items) or []
+    if not isinstance(summ, dict):
+        return []
+    return _action_items_here(summ) or _first(_nested(summ), _find_action_items) or []
 
 
 def _map_action_item(item: Any) -> ActionItem:
@@ -232,7 +243,7 @@ class PocketHttpSource:
             if exc.code == 429:
                 self._note_throttled(exc.headers)
             self._raise_http(exc, self._clock())
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        except OSError as exc:  # URLError and TimeoutError are OSErrors
             raise CliError(
                 EXIT_ENV_ERROR, f"Pocket request failed: {exc}", "Check connectivity; retry."
             ) from exc
@@ -265,7 +276,7 @@ class PocketHttpSource:
             raise CliError(
                 EXIT_USER_ERROR, f"Pocket resource not found{suffix}", "Check the recording id."
             ) from exc
-        raise CliError(EXIT_ENV_ERROR, f"Pocket HTTP {exc.code}{suffix}", "Retry later.") from exc
+        raise CliError(EXIT_ENV_ERROR, f"Pocket HTTP {exc.code}{suffix}", _RETRY_LATER) from exc
 
     @staticmethod
     def _unwrap(payload: Any) -> Any:
@@ -275,7 +286,7 @@ class PocketHttpSource:
             raise CliError(
                 EXIT_ENV_ERROR,
                 f"Pocket error: {payload.get('error') or payload.get('error_code')}",
-                "Retry later.",
+                _RETRY_LATER,
             )
         return payload
 
@@ -322,7 +333,7 @@ class PocketHttpSource:
         )
         data = payload.get("data")
         if not isinstance(data, dict) or "id" not in data:
-            raise CliError(EXIT_ENV_ERROR, "Pocket returned no recording", "Retry later.")
+            raise CliError(EXIT_ENV_ERROR, "Pocket returned no recording", _RETRY_LATER)
         return _map_recording(data)
 
     def get_audio_url(self, recording_id: str, expires_in: int = 3600) -> str:
@@ -341,5 +352,5 @@ class PocketHttpSource:
                 or data.get("download_url")
             )
         if not isinstance(data, str) or not data:
-            raise CliError(EXIT_ENV_ERROR, "Pocket returned no audio URL", "Retry later.")
+            raise CliError(EXIT_ENV_ERROR, "Pocket returned no audio URL", _RETRY_LATER)
         return data

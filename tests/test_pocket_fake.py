@@ -29,9 +29,12 @@ def test_is_pocket_source_and_read_only():
 def test_pagination():
     fake = FakePocketSource(_recs(5))
     p1 = fake.list_recordings(page=1, limit=2)
-    assert [r.id for r in p1.recordings] == ["r0", "r1"] and p1.has_more and p1.total == 5
+    assert [r.id for r in p1.recordings] == ["r0", "r1"]
+    assert p1.has_more
+    assert p1.total == 5
     p3 = fake.list_recordings(page=3, limit=2)
-    assert [r.id for r in p3.recordings] == ["r4"] and not p3.has_more
+    assert [r.id for r in p3.recordings] == ["r4"]
+    assert not p3.has_more
 
 
 def test_date_filter_and_limit_cap():
@@ -57,7 +60,8 @@ def test_edit_bumps_updated_at():
     before = fake.get_recording("r0").updated_at
     fake.edit("r0", summary="new")
     after = fake.get_recording("r0")
-    assert after.summary == "new" and after.updated_at > before
+    assert after.summary == "new"
+    assert after.updated_at > before
 
 
 def test_delete_and_merge_state():

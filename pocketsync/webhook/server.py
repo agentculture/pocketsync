@@ -21,6 +21,7 @@ from pocketsync.webhook import MalformedEvent, verify_and_parse
 HOOK_PATH = "/hooks/pocket"
 DEFAULT_MAX_BODY = 5 * 1024 * 1024
 BODY_TIMEOUT = 10.0
+_BAD_REQUEST = "bad request"
 _LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 
 log = logging.getLogger("pocketsync.webhook")
@@ -79,7 +80,7 @@ class _Handler(BaseHTTPRequestHandler):
             if length < 0:
                 raise ValueError
         except ValueError:
-            self._reply(400, "bad request", close=True)
+            self._reply(400, _BAD_REQUEST, close=True)
             return
         if length > ctx.max_body:
             self._reply(413, "payload too large", close=True)
@@ -91,7 +92,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._reply(408, "request timeout", close=True)
             return
         if len(raw) != length:
-            self._reply(400, "bad request", close=True)
+            self._reply(400, _BAD_REQUEST, close=True)
             return
         self._handle_body(ctx, raw)
 
@@ -102,7 +103,7 @@ class _Handler(BaseHTTPRequestHandler):
             )
         except MalformedEvent:
             ctx.state.record_error("webhook", "malformed event after valid signature")
-            self._reply(400, "bad request")
+            self._reply(400, _BAD_REQUEST)
             return
         if not result.ok or event is None:
             ctx.state.record_error("webhook", f"rejected: {result.reason}")

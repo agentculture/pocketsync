@@ -119,10 +119,13 @@ def test_success_writes_enrichment_and_one_event(store, outbox):
     assert stats["done"] == 1
     e = doc(store)["enrichment"]
     assert e["status"] == "done"
-    assert e["model"] == EMBED_MODEL and e["dims"] == EMBED_DIMS
-    assert e["labels"] == ["meeting"] and e["taxonomy_version"] == TAX
+    assert e["model"] == EMBED_MODEL
+    assert e["dims"] == EMBED_DIMS
+    assert e["labels"] == ["meeting"]
+    assert e["taxonomy_version"] == TAX
     assert len(e["summary_vector"]) == EMBED_DIMS
-    assert e["chunks"][0]["index"] == 0 and len(e["chunks"][0]["vector"]) == EMBED_DIMS
+    assert e["chunks"][0]["index"] == 0
+    assert len(e["chunks"][0]["vector"]) == EMBED_DIMS
     assert e["enriched_at"]
     evs = events(outbox)
     assert len(evs) == 1
@@ -142,7 +145,8 @@ def test_503_then_200_stays_pending_with_backoff(store, outbox):
     gw = FakeGateway(fail_first=1, retry_after="30")
     w = EnrichmentWorker(store, gw, outbox, clock=clk)
     s1 = w.run_once()
-    assert s1["unavailable"] == 1 and s1["done"] == 0
+    assert s1["unavailable"] == 1
+    assert s1["done"] == 0
     assert doc(store)["enrichment"]["status"] == "pending"
     assert events(outbox) == []
     # still inside the Retry-After window -> not retried
@@ -181,7 +185,8 @@ def test_content_change_mid_enrichment_discards_and_requeues(store, outbox):
     gw = FakeGateway(on_embed=change)
     w = EnrichmentWorker(store, gw, outbox)
     s = w.run_once()
-    assert s["stale"] == 1 and s["done"] == 0
+    assert s["stale"] == 1
+    assert s["done"] == 0
     d = doc(store)
     assert d["enrichment"]["status"] == "pending"
     assert "labels" not in d["enrichment"]
@@ -189,7 +194,8 @@ def test_content_change_mid_enrichment_discards_and_requeues(store, outbox):
     gw.on_embed = None
     assert w.run_once()["done"] == 1
     evs = events(outbox)
-    assert len(evs) == 1 and evs[0]["content_hash"] == doc(store)["content_hash"]
+    assert len(evs) == 1
+    assert evs[0]["content_hash"] == doc(store)["content_hash"]
 
 
 def test_concurrency_cap(store, outbox):
@@ -226,7 +232,8 @@ def test_nonretryable_error_sets_error_status(store, outbox):
     s = EnrichmentWorker(store, Bad(), outbox).run_once()
     assert s["errors"] == 1
     d = doc(store)["enrichment"]
-    assert d["status"] == "error" and "bad vectors" in d["error"]
+    assert d["status"] == "error"
+    assert "bad vectors" in d["error"]
     assert events(outbox) == []
 
 
@@ -235,9 +242,12 @@ def test_no_text_is_done_without_vectors(store, outbox):
     gw = FakeGateway()
     EnrichmentWorker(store, gw, outbox).run_once()
     e = doc(store)["enrichment"]
-    assert e["status"] == "done" and e["labels"] == [] and e["chunks"] == []
+    assert e["status"] == "done"
+    assert e["labels"] == []
+    assert e["chunks"] == []
     assert "summary_vector" not in e
-    assert gw.calls == 0 and gw.classify_inputs == []
+    assert gw.calls == 0
+    assert gw.classify_inputs == []
     assert len(events(outbox)) == 1
 
 
@@ -246,7 +256,8 @@ def test_missing_summary_still_embeds_and_classifies_transcript(store, outbox):
     gw = FakeGateway()
     EnrichmentWorker(store, gw, outbox).run_once()
     e = doc(store)["enrichment"]
-    assert "summary_vector" not in e and len(e["chunks"]) == 1
+    assert "summary_vector" not in e
+    assert len(e["chunks"]) == 1
     assert "hello there" in gw.classify_inputs[0]
 
 

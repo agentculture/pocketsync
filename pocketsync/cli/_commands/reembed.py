@@ -19,7 +19,7 @@ from pocketsync.enrich.gateway import EMBED_DIMS, EMBED_MODEL
 from pocketsync.sinks.mongo import ENRICHMENT_PENDING, PATH_ENRICHMENT_STATUS
 
 
-def cmd_reembed(args: argparse.Namespace) -> int:
+def cmd_reembed(args: argparse.Namespace) -> None:
     rt = _runtime.get()
     rt.settings.require("mongo_uri")
     collection = rt.store_sink().collection
@@ -40,11 +40,11 @@ def cmd_reembed(args: argparse.Namespace) -> int:
     }
     if json_mode(args):
         emit_result(result, json_mode=True)
-        return 0
+        return
     target = f"{EMBED_MODEL}/{EMBED_DIMS}"
     if not ids:
         emit_result(f"nothing to re-embed: every stored vector uses {target}", json_mode=False)
-        return 0
+        return
     lines = [f"{len(ids)} recording(s) use another model/dimension than {target}:"]
     lines += [f"  {i}" for i in ids]
     if args.apply:
@@ -52,7 +52,6 @@ def cmd_reembed(args: argparse.Namespace) -> int:
     else:
         lines.append("dry run (nothing written); pass --apply to mark them pending")
     emit_result("\n".join(lines), json_mode=False)
-    return 0
 
 
 def register(sub: argparse._SubParsersAction) -> None:

@@ -43,10 +43,12 @@ def test_source_requires_key_and_never_reprs_it(tmp_path):
     rt = _runtime.Runtime(settings(tmp_path))
     with pytest.raises(CliError) as exc:
         rt.source()
-    assert exc.value.code == 2 and "POCKETSYNC_API_KEY" in exc.value.message
+    assert exc.value.code == 2
+    assert "POCKETSYNC_API_KEY" in exc.value.message
     rt = _runtime.Runtime(settings(tmp_path, POCKETSYNC_API_KEY="pk_synthetic"))
     src = rt.source()
-    assert isinstance(src, PocketHttpSource) and rt.source() is src
+    assert isinstance(src, PocketHttpSource)
+    assert rt.source() is src
     assert "pk_synthetic" not in repr(src)
 
 
@@ -78,8 +80,9 @@ def test_mongo_pieces_share_one_database(tmp_path, monkeypatch):
 
 
 def test_database_requires_uri(tmp_path):
+    rt = _runtime.Runtime(settings(tmp_path))
     with pytest.raises(CliError) as exc:
-        _runtime.Runtime(settings(tmp_path)).database()
+        rt.database()
     assert "POCKETSYNC_MONGO_URI" in exc.value.message
 
 

@@ -11,6 +11,7 @@ from unittest import mock
 
 import pytest
 
+from pocketsync.cli._errors import CliError
 from pocketsync.pocket.base import RateLimited
 from pocketsync.pocket.http import PocketHttpSource, _map_recording
 
@@ -97,7 +98,8 @@ def test_live_action_items_under_actions_are_mapped():
 def test_live_summary_segments_and_speakers():
     rec = _map_recording(LIVE_DETAIL)
     assert rec.summary == "# Synthetic summary"
-    assert rec.segments[0].speaker_name == "Alex" and rec.segments[0].end == 2.5
+    assert rec.segments[0].speaker_name == "Alex"
+    assert rec.segments[0].end == 2.5
     assert rec.speakers == ["Alex"]
 
 
@@ -169,8 +171,9 @@ def test_non_429_error_does_not_arm_the_throttle():
     src = PocketHttpSource("pk_test", sleep=slept.append, clock=lambda: 1000.0)
     err = urllib.error.HTTPError("u", 500, "x", {"X-Ratelimit-Reset": "1040"}, io.BytesIO(b"{}"))
     with mock.patch(TARGET, side_effect=[err, _page({})]):
-        with pytest.raises(Exception):
+        with pytest.raises(CliError) as ei:
             src.list_recordings(limit=1)
+        assert not isinstance(ei.value, RateLimited)
         src.list_recordings(limit=1)
     assert slept == []
 

@@ -202,12 +202,14 @@ def test_bad_config_reports_fail_not_traceback(monkeypatch, capsys):
     monkeypatch.setattr(_runtime, "build", bad)
     assert main(["doctor"]) == 1
     out = capsys.readouterr().out
-    assert "config" in out and "Traceback" not in out
+    assert "config" in out
+    assert "Traceback" not in out
 
 
 def test_text_mode_marks(rt, capsys):
     rt.ping_error = RuntimeError("nope")
     main(["doctor"])
     out = capsys.readouterr().out
-    assert "[FAIL] mongo_auth" in out and "hint:" in out
+    assert "[FAIL] mongo_auth" in out
+    assert "hint:" in out
     assert "[warn]" in out

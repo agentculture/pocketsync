@@ -21,6 +21,7 @@ from pocketsync.sinks.base import AudioDownloadError, FileRef, FileSet, PutResul
 
 DEFAULT_CHUNK = 64 * 1024
 DEFAULT_AUDIO_EXT = ".m4a"
+META_NAME = "meta.json"  # written last; its presence means the recording is complete
 _LOCAL_HOSTS = ("localhost", "127.0.0.1")
 _CONTENT_TYPE_EXT = {
     "audio/mp4": ".m4a",
@@ -206,7 +207,7 @@ class LocalSink:
         if d is None:
             return None
         try:
-            return d, json.loads((d / "meta.json").read_text(encoding="utf-8"))
+            return d, json.loads((d / META_NAME).read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise CliError(
                 EXIT_ENV_ERROR,
@@ -220,8 +221,8 @@ class LocalSink:
 
     def _write_meta(self, d: Path, meta: dict[str, Any]) -> FileRef:
         data = (json.dumps(meta, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode()
-        _atomic_write(d / "meta.json", data)
-        return _ref(self.root, d / "meta.json", data)
+        _atomic_write(d / META_NAME, data)
+        return _ref(self.root, d / META_NAME, data)
 
     # -- protocol ----------------------------------------------------------
     def put_recording(

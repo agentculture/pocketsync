@@ -44,7 +44,8 @@ def run(h, body=BODY, secret=SECRET, now=NOW, tolerance=300.0):
 
 def test_valid_ms_timestamp() -> None:
     r = run(headers(str(int(NOW * 1000))))
-    assert r.ok and r.reason == "ok"
+    assert r.ok
+    assert r.reason == "ok"
 
 
 def test_valid_seconds_timestamp() -> None:
@@ -69,7 +70,8 @@ def test_timestamp_used_exactly_as_received() -> None:
 
 def test_missing_signature() -> None:
     r = run({"X-HeyPocket-Timestamp": str(int(NOW))})
-    assert not r.ok and r.reason == "missing_signature"
+    assert not r.ok
+    assert r.reason == "missing_signature"
 
 
 def test_empty_signature_is_missing() -> None:
@@ -139,8 +141,10 @@ def test_parse_event_malformed(raw: bytes) -> None:
 
 def test_verify_and_parse_ok_keeps_payload() -> None:
     res, ev = verify_and_parse(headers(str(int(NOW))), BODY, SECRET, NOW)
-    assert res.ok and ev is not None
-    assert ev.recording_id == "rec-1" and ev.payload["recording"] == {"id": "rec-1"}
+    assert res.ok
+    assert ev is not None
+    assert ev.recording_id == "rec-1"
+    assert ev.payload["recording"] == {"id": "rec-1"}
 
 
 def test_verify_and_parse_never_parses_unverified(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -153,7 +157,8 @@ def test_verify_and_parse_never_parses_unverified(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(mod, "parse_payload", boom)
     res, ev = verify_and_parse(headers(str(int(NOW)), "0" * 64), BODY, SECRET, NOW)
-    assert not res.ok and ev is None
+    assert not res.ok
+    assert ev is None
 
 
 def test_verify_and_parse_signed_garbage_raises() -> None:

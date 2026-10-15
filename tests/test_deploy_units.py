@@ -24,7 +24,8 @@ def test_serve_unit_restarts_and_injects_all_secrets_via_grant():
     svc = u["Service"]
     assert svc["Restart"] == "on-failure"
     exec_start = svc["ExecStart"]
-    assert "grant run" in exec_start and exec_start.rstrip().endswith("pocketsync serve")
+    assert "grant run" in exec_start
+    assert exec_start.rstrip().endswith("pocketsync serve")
     for var in (
         "POCKETSYNC_API_KEY",
         "POCKETSYNC_WEBHOOK_SECRET",
@@ -52,6 +53,7 @@ def test_tunnel_unit_mirrors_culture_rules_connector():
 def test_runbook_keeps_access_on_and_bypasses_only_the_exact_path():
     text = RUNBOOK.read_text()
     assert "pocketsync.culture.dev/hooks/pocket" in text
-    assert "--no-access" in text and "**Do not** use `--no-access`" in text
+    assert "--no-access" in text
+    assert "**Do not** use `--no-access`" in text
     assert "Never widen it" in text
     assert "127.0.0.1:<port>" in text

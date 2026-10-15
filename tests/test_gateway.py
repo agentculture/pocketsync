@@ -63,15 +63,16 @@ def client():
 
 def test_embed_request_shape(client):
     vecs = client.embed(["a", "b"])
-    assert len(vecs) == 2 and len(vecs[0]) == 768
+    assert len(vecs) == 2
+    assert len(vecs[0]) == 768
     path, headers, body = Fake.seen[0]
     assert path == "/v1/embeddings"
     assert body == {"model": "gemma2-embed", "input": ["a", "b"], "prompt_name": "Document"}
     assert headers["Authorization"] == "Bearer k"
 
 
-def test_embed_wrong_dims(client):
-    Fake.dims = 128
+def test_embed_wrong_dims(client, monkeypatch):
+    monkeypatch.setattr(Fake, "dims", 128)
     with pytest.raises(CliError):
         client.embed(["a"])
 
@@ -83,22 +84,25 @@ def test_classify(client):
     assert headers["X-Lobes-Model"] == "decider:general"
     assert body["state"] == "hello"
     assert set(body["questions"]["category"]["criteria"]) >= {"meeting", "other", "idea"}
-    assert res.label == "meeting" and res.confidence == 0.9
+    assert res.label == "meeting"
+    assert res.confidence == 0.9
     assert res.filters == {"has_action_items": 0.8}
     assert res.taxonomy_version == client.taxonomy.version
 
 
 @pytest.mark.parametrize("status", [503, 404, 429, 500, 502, 504])
-def test_unavailable_is_retryable(client, status):
-    Fake.status = status
+def test_unavailable_is_retryable(client, status, monkeypatch):
+    monkeypatch.setattr(Fake, "status", status)
     with pytest.raises(EnrichmentUnavailable) as ei:
         client.embed(["a"])
-    assert ei.value.retryable and ei.value.retry_after == "5"
+    assert ei.value.retryable
+    assert ei.value.retry_after == "5"
 
 
 def test_unreachable_is_retryable():
+    unreachable = GatewayClient("http://127.0.0.1:1/v1", timeout=1)
     with pytest.raises(EnrichmentUnavailable):
-        GatewayClient("http://127.0.0.1:1/v1", timeout=1).embed(["a"])
+        unreachable.embed(["a"])
 
 
 def test_taxonomies_differ():
@@ -123,8 +127,8 @@ def test_load_taxonomy_from_path(tmp_path):
 
 
 @pytest.mark.parametrize("status", [400, 401, 422])
-def test_client_errors_are_not_retryable(client, status):
-    Fake.status = status
+def test_client_errors_are_not_retryable(client, status, monkeypatch):
+    monkeypatch.setattr(Fake, "status", status)
     with pytest.raises(CliError) as ei:
         client.embed(["a"])
     assert not isinstance(ei.value, EnrichmentUnavailable)

@@ -20,6 +20,7 @@ EMBED_MODEL = "gemma2-embed"
 EMBED_DIMS = 768
 DECIDER_MODEL = "decider:general"
 DEFAULT_TIMEOUT = 60.0
+_CHECK_GATEWAY = "check gateway"
 
 
 class EnrichmentUnavailable(CliError):
@@ -168,11 +169,11 @@ class GatewayClient:
                     "retry later; the model lane may be loading or not deployed",
                     retry_after=exc.headers.get("Retry-After") if exc.headers else None,
                 ) from exc
-            raise CliError(2, f"gateway error {exc.code} for {path}", "check gateway") from exc
+            raise CliError(2, f"gateway error {exc.code} for {path}", _CHECK_GATEWAY) from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
             raise EnrichmentUnavailable(f"gateway unreachable: {exc}") from exc
         except json.JSONDecodeError as exc:
-            raise CliError(2, "gateway returned invalid JSON", "check gateway") from exc
+            raise CliError(2, "gateway returned invalid JSON", _CHECK_GATEWAY) from exc
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed documents with gemma2-embed; asserts 768-d vectors."""
@@ -185,7 +186,7 @@ class GatewayClient:
         data = sorted(resp.get("data", []), key=lambda d: d.get("index", 0))
         vectors = [d["embedding"] for d in data]
         if len(vectors) != len(texts):
-            raise CliError(2, "embedding count mismatch", "check gateway")
+            raise CliError(2, "embedding count mismatch", _CHECK_GATEWAY)
         for vec in vectors:
             if len(vec) != EMBED_DIMS:
                 raise CliError(2, f"expected {EMBED_DIMS}-d vectors, got {len(vec)}", "check model")
