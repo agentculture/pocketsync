@@ -29,10 +29,14 @@ enriches each recording and emits one handoff event.
 route the data onward, so the on-disk layout, the mongo document shape and the
 event stream are a public contract.
 
-**Status: scaffold only.** The repo is still the `culture-agent-template`
-scaffold renamed to `pocketsync`. Everything below is *(planned)*, and none of
-that code exists yet; the build is in progress on branch
-`feat/pocket-to-mongodb`. The requirements baseline is the spec
+**Status: sync engine built (0.11.0); live deploy pending.** The shape below
+is on disk except where an item is marked *(planned)*: the Pocket adapter, the
+webhook receiver (with a durable inbox), landing, the `local` and `mongo`
+sinks, the reconciler, enrichment, the event outbox, and the CLI verbs `auth`,
+`list`, `sync`, `watch`, `serve`, `status` and `reembed`. The operator deploy
+and acceptance run are
+[issue #3](https://github.com/agentculture/pocketsync/issues/3). The
+requirements baseline is the spec
 [`docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md`](docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md)
 (original brief: [issue #1](https://github.com/agentculture/pocketsync/issues/1)).
 
@@ -45,20 +49,20 @@ timeout, 3 attempts). *Superseded:* the earlier reverse-engineered
 Firebase-token path is not used; Pocket's Terms of Service bar automated
 access "for unauthorized purposes".
 
-Planned shape *(planned)*:
+Shape:
 
 - A Pocket source adapter (official API) plus a signed-webhook receiver at
   `pocketsync.culture.dev/hooks/pocket` (Cloudflare tunnel, Access on with an
   exact-path Bypass); deletes arrive as tombstones.
-- `local`, `s3` and `mongo` sinks behind one interface. `pocketsync-mongo` is
+- `local` and `mongo` sinks (plus `s3` *(planned)*) behind one interface. `pocketsync-mongo` is
   a dedicated `mongodb/mongodb-atlas-local` container on `127.0.0.1:27019`
   with host bind mounts outside the repo; audio is saved as files.
 - Enrichment by pocketsync via the lobes gateway: `gemma2-embed` 768-d vectors
   and lobes decider type labels.
 - Idempotent, content-hash incremental sync; one event per recording after
   enrichment via events-cli (QoS 1) with an `events.jsonl` outbox.
-- Optional extras `pocketsync[s3]`, `pocketsync[mongo]`, `pocketsync[events]`;
-  the core stays dependency-free.
+- Optional extras `pocketsync[mongo]` and `pocketsync[events]` (plus
+  `pocketsync[s3]` *(planned)*); the core stays dependency-free.
 
 Siblings: [`guildmaster`](https://github.com/agentculture/guildmaster)
 (skills supplier), [`steward`](https://github.com/agentculture/steward)

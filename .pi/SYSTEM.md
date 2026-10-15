@@ -21,8 +21,9 @@ recordings, transcripts, summaries and action items from Pocket's official
 public API (static `pk_` key) and signed webhooks into local disk, S3 and a
 dedicated MongoDB (`pocketsync-mongo`), enriches them (embeddings and type
 labels via the lobes gateway) and emits one handoff event per recording. All
-of that is *(planned)*: the repo is currently a scaffold, and the earlier
-reverse-engineered Firebase-token premise is superseded. See
+of that is built as of 0.11.0 except the S3 sink, which is *(planned)*, and
+the live deploy is pending. The earlier reverse-engineered Firebase-token
+premise is superseded. See
 [`AGENTS.override.md`](../AGENTS.override.md) for detail.
 
 ## What you may do

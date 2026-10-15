@@ -24,9 +24,11 @@ truth), routing data downstream, and any UI.
 
 ## Status
 
-**Partly built.** The data layer exists; the engines that drive it do not.
-Anything marked *(planned)* below is not on disk yet. The build brief is
-[issue #1](https://github.com/agentculture/pocketsync/issues/1).
+**Built (0.11.0); live deploy pending.** Anything marked *(planned)* below is
+not on disk yet. The build brief is
+[issue #1](https://github.com/agentculture/pocketsync/issues/1). The operator
+deploy and acceptance run are
+[issue #3](https://github.com/agentculture/pocketsync/issues/3).
 
 | Area | State |
 |------|-------|
@@ -40,12 +42,16 @@ Anything marked *(planned)* below is not on disk yet. The build brief is
 | `events.jsonl` outbox and events-cli publisher (`pocketsync/events.py`) | Built |
 | Default taxonomy (`pocketsync/enrich/default_taxonomy.toml`) | Built |
 | Mongo deploy stack (`deploy/mongo/`) | Built (see [operations guide](docs/operations/pocketsync-mongo.md)) |
-| Webhook HTTP server | *(planned)* |
-| Landing engine (Pocket to sinks) | *(planned)* |
-| Enrichment worker (embeddings, labels) | *(planned)* |
-| Reconciler and backfill | *(planned)* |
-| CLI verbs `auth`, `list`, `sync`, `watch`, `serve`, `status`, `reembed` | *(planned)* |
-| systemd and cloudflared deploy | *(planned)* |
+| Pocket source adapter, official API (`pocketsync/pocket/`) | Built |
+| Webhook HTTP server with a durable inbox (`pocketsync/webhook/`) | Built |
+| Landing engine, Pocket to sinks (`pocketsync/sync.py`) | Built |
+| Enrichment worker, embeddings and labels (`pocketsync/enrich/`) | Built |
+| Reconciler and backfill (`pocketsync/reconcile.py`) | Built |
+| `serve` composition (`pocketsync/serve.py`) | Built |
+| CLI verbs `auth`, `list`, `sync`, `watch`, `serve`, `status`, `reembed` | Built |
+| systemd and cloudflared deploy files | Built (see the [culture.dev runbook](docs/operations/pocketsync-culture-dev.md)) |
+| Live deploy and acceptance run | *(planned)*: [issue #3](https://github.com/agentculture/pocketsync/issues/3) |
+| S3 sink | *(planned)* |
 | Example culture-rules rule consuming the events | *(planned)* |
 
 **Pocket API access uses the official API.** Pocket has an official public API
@@ -59,8 +65,8 @@ Service bar automated access "for unauthorized purposes". See the spec in
 ## Audiences
 
 - **Operator** (whoever runs pocketsync): deploys the Mongo stack, sets the
-  secrets below, runs the sync and enrichment processes *(planned)*, and reads
-  `status` *(planned)*. Start with the
+  secrets below, runs `pocketsync serve` (sync and enrichment), and reads
+  `pocketsync status`. Start with the
   [operations guide](docs/operations/pocketsync-mongo.md).
 - **Consumers** (culture-rules workflows and Culture mesh agents): read the
   stores and react to the events. The
@@ -70,24 +76,26 @@ Service bar automated access "for unauthorized purposes". See the spec in
   changes to them like API changes. Consumers never call Pocket and never need
   the Pocket or webhook secrets.
 
-## Planned CLI
+## CLI
 
 Write verbs are dry-run by default and commit only with `--apply`. Every verb
-takes `--json`. None of these exist yet.
+takes `--json`.
 
-| Verb | What it will do |
+| Verb | What it does |
 |------|-----------------|
-| `pocketsync auth` | Set up and verify Pocket credentials. |
+| `pocketsync auth` | Verify the Pocket API key with one list call. |
 | `pocketsync list` | List remote recordings and their sync status. |
-| `pocketsync sync [--since …] [--with-audio] [--apply]` | Incrementally sync recordings into the sinks. |
-| `pocketsync watch` | Poll loop or daemon around `sync`. |
-| `pocketsync serve` | Run the webhook server and enrichment worker. |
-| `pocketsync status` | Show the watermark, the last run and errors. |
-| `pocketsync reembed [--apply]` | Re-embed everything after a model or dimension change. |
+| `pocketsync sync [--since DATE] [--no-audio] [--no-enrich] [--apply]` | One reconcile or backfill pass into the sinks. |
+| `pocketsync watch [--interval S]` | Reconciler-only loop until SIGTERM or Ctrl-C. |
+| `pocketsync serve [--port P]` | Webhook receiver, landing, reconciler and enrichment in one process. |
+| `pocketsync status` | Watermark, last run, webhook health, enrichment backlog and last errors. |
+| `pocketsync reembed [--apply]` | Queue recordings embedded with another model for re-embedding. |
 
 Sync is incremental and idempotent. A re-run with no remote changes does
 nothing. A content hash detects when Pocket re-processes a transcript or
-summary, and that recording is re-synced.
+summary, and that recording is re-synced. Audio is downloaded once per
+recording; if it is missing (`--no-audio`, or a failed download), a later
+pass with audio fetches it.
 
 ## Data contract
 
@@ -184,8 +192,9 @@ Example, with synthetic values and truncated vectors:
 }
 ```
 
-The `filters` shape is produced by the enrichment worker *(planned)*; the
-store accepts it as an opaque value, so treat its inner shape as provisional.
+The enrichment worker writes `filters` from the lobes decider as
+`{filter_name: confidence}`. The store accepts it as an opaque value, and the
+label taxonomy is still open, so treat its inner shape as provisional.
 
 ### Vector search
 
@@ -314,9 +323,9 @@ Non-secret settings:
 |----------|---------|---------|
 | `POCKETSYNC_FILES_ROOT` | `$HOME/.local/share/pocketsync/files` | Root of the local file sink and the event outbox. |
 | `POCKETSYNC_GATEWAY_URL` | `http://localhost:8001/v1` | Gateway base URL. |
-| `POCKETSYNC_WEBHOOK_PORT` | `8787` | Webhook server port *(planned)*. |
-| `POCKETSYNC_RECONCILE_INTERVAL` | `300` | Reconciler interval in seconds *(planned)*. |
-| `POCKETSYNC_ENRICHMENT_CONCURRENCY` | `2` | Parallel enrichment jobs *(planned)*. |
+| `POCKETSYNC_WEBHOOK_PORT` | `8787` | Webhook server port. |
+| `POCKETSYNC_RECONCILE_INTERVAL` | `300` | Reconciler interval in seconds. |
+| `POCKETSYNC_ENRICHMENT_CONCURRENCY` | `2` | Parallel enrichment jobs. |
 | `POCKETSYNC_TAXONOMY_PATH` | built-in | Taxonomy TOML; default is `pocketsync/enrich/default_taxonomy.toml` (labels: meeting, call, idea, todo-reminder, personal-note, lecture-learning, other). |
 | `POCKETSYNC_CONFIG` | unset | Path to the optional TOML config. |
 | `POCKETSYNC_DATA_DIR` | `$HOME/.local/share/pocketsync/mongo` | Host data root for the Mongo stack (compose only). |

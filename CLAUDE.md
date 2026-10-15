@@ -19,15 +19,36 @@ contract** other code builds against; treat changes to them like API changes.
 Non-goals: no re-running STT (Pocket's transcript is the source of truth; we
 store the audio as files), no routing to downstream destinations, no UI.
 
-## Status — scaffold only, spec and plan exist
+## Status — sync engine built (0.11.0), live deploy pending
 
-As of the last update to this file, the repo is still the
-`culture-agent-template` scaffold renamed to `pocketsync`. **No Pocket, sink,
-sync, webhook, mongo, enrichment or event code exists yet.** The only verbs on
-disk are the agent-first identity/introspection verbs (`whoami`, `learn`,
-`explain`, `overview`, `doctor`, `cli overview`). Everything under "Target
-architecture" below is *(planned)*; the build is in progress on branch
-`feat/pocket-to-mongodb`.
+The Pocket-to-MongoDB build is on disk as of 0.11.0. It includes:
+
+- the official-API Pocket adapter (`pocketsync/pocket/`);
+- the signed webhook receiver (`pocketsync/webhook/`), with a durable inbox
+  in sync state;
+- the landing engine (`pocketsync/sync.py`);
+- the `local` and `mongo` sinks (`pocketsync/sinks/`) and sync state
+  (`pocketsync/state.py`);
+- the reconciler and backfill (`pocketsync/reconcile.py`);
+- enrichment (`pocketsync/enrich/`) and the vector-index manager
+  (`pocketsync/vindex.py`);
+- the event outbox and publisher (`pocketsync/events.py`), and the `serve`
+  composition (`pocketsync/serve.py`);
+- the CLI verbs `auth`, `list`, `sync`, `watch`, `serve`, `status` and
+  `reembed`, next to the introspection verbs (`whoami`, `learn`, `explain`,
+  `overview`, `doctor`, `cli overview`).
+
+Deploy files are in `deploy/`, and the runbooks are in `docs/operations/`.
+
+Still *(planned)*:
+
+- the `s3` sink;
+- an example culture-rules rule that consumes the events;
+- the operator-side live deploy and acceptance run
+  ([issue #3](https://github.com/agentculture/pocketsync/issues/3)).
+
+Follow-ups are tracked in
+[issue #4](https://github.com/agentculture/pocketsync/issues/4).
 
 The requirements baseline is the converged spec
 [`docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md`](docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md)
@@ -54,10 +75,10 @@ Firebase ID token, is **not used**. Pocket's Terms of Service bar automated
 access "for unauthorized purposes", and the official key makes that path
 unnecessary. Do not build a Firebase or refresh-token path.
 
-## Target architecture *(planned — per the spec)*
+## Architecture (per the spec)
 
-None of this exists yet. New code should slot into this shape rather than
-invent a parallel one.
+This is built as described, except where an item is marked *(planned)*. New
+code should slot into this shape rather than invent a parallel one.
 
 - **Source adapter: Pocket**, behind an interface, using the official API
   with the `pk_` key. List recordings since a cursor (a backfill and
@@ -71,12 +92,15 @@ invent a parallel one.
   `pocketsync.culture.dev/hooks/pocket` through a Cloudflare tunnel, with
   Access on and an exact-path Bypass for that one route. Deletes arrive as
   **tombstones**.
-- **Sink adapters: `local`, `s3` and `mongo`**, behind one interface so more
-  can be added. Proposed per-recording file layout for local/S3:
+- **Sink adapters: `local`, `mongo` and `s3` *(planned)***, behind one
+  interface so more can be added. The per-recording file layout for local
+  (and later S3):
   `<root>/<YYYY>/<MM>/<recording-id>/{meta.json, transcript.json, transcript.md, summary.md, audio.*}`.
   Writes are **atomic, with `meta.json` written last**, so a reader that sees
-  `meta.json` never sees a half-written recording. S3 uses the standard AWS
-  credential chain. Tests use a **fake S3** (moto or a stub) and a fake Mongo.
+  `meta.json` never sees a half-written recording. Audio is immutable per
+  recording: it is downloaded once, and a failed download never blocks the
+  text from landing. S3 *(planned)* uses the standard AWS credential chain.
+  Tests use a fake Mongo (`mongomock`).
 - **Mongo sink: `pocketsync-mongo`.** A dedicated container
   (`mongodb/mongodb-atlas-local`) bound to `127.0.0.1:27019`, with data on host
   bind mounts **outside the repo** so it survives container re-creation. One
@@ -97,17 +121,26 @@ invent a parallel one.
   lost if the broker is down. Each event carries the recording id, sink paths,
   content hash and `created`/`updated`. The schema is documented in
   `README.md` and is what culture-rules builds against.
-- **CLI verbs**: `auth` (set up and verify the `pk_` key), `list` (remote
-  recordings plus sync status), `sync [--to local|s3|mongo] [--since …]
-  [--with-audio] [--apply]`, `watch` (webhook receiver plus reconciliation
-  poll), `status` (cursor, last run, errors). **Write verbs are dry-run by
+- **CLI verbs**:
+  - `auth` verifies the `pk_` key.
+  - `list` shows remote recordings with their sync status.
+  - `sync [--since DATE] [--no-audio] [--no-enrich] [--apply]` runs one
+    reconcile or backfill pass.
+  - `watch` runs the reconciliation loop only.
+  - `serve` runs the webhook receiver, landing, the reconciler and
+    enrichment in one process.
+  - `status` shows the watermark, the last run, webhook health, the
+    enrichment backlog and the last errors.
+  - `reembed` re-queues recordings embedded with another model.
+
+  **Write verbs are dry-run by
   default and commit only with `--apply`**, and every verb takes `--json`.
 
 Runtime dependencies are currently **zero** (`dependencies = []`). Third-party
 clients go behind optional extras and are imported lazily, so the core and the
-`local` sink stay dependency-free: `boto3` behind `pocketsync[s3]`, `pymongo`
-behind `pocketsync[mongo]` *(planned)* and the events-cli client behind
-`pocketsync[events]` *(planned)*. Test-only libraries such as `moto` or
+`local` sink stay dependency-free. `pymongo` is behind `pocketsync[mongo]`, the
+events-cli client is behind `pocketsync[events]`, and `boto3` will be behind
+`pocketsync[s3]` *(planned)*. Test-only libraries such as `moto` or
 `mongomock` go in the `dev` dependency group.
 
 ## Constraints that bite
