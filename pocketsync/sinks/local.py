@@ -289,21 +289,22 @@ class LocalSink:
         sm = render_summary_md(rec).encode()
         for name, data in (("transcript.json", tj), ("transcript.md", tm), ("summary.md", sm)):
             _atomic_write(d / name, data)
-        return replace(
+        updated: FileSet = replace(
             fs,
             transcript_json=_ref(self.root, d / "transcript.json", tj),
             transcript_md=_ref(self.root, d / "transcript.md", tm),
             summary_md=_ref(self.root, d / "summary.md", sm),
         )
+        return updated
 
     def _fetch_audio(self, d: Path, rec: Recording, fs: FileSet, audio_url: str) -> FileSet:
         try:
             a = download_audio(audio_url, d, opener=self._opener)
         except (OSError, ValueError, http.client.HTTPException, CliError) as exc:
             raise AudioDownloadError(f"audio download failed for {rec.id}: {exc}") from exc
-        return replace(
-            fs, audio=replace(a, rel_path=(d / a.rel_path).relative_to(self.root).as_posix())
-        )
+        audio: FileRef = replace(a, rel_path=(d / a.rel_path).relative_to(self.root).as_posix())
+        updated: FileSet = replace(fs, audio=audio)
+        return updated
 
     @staticmethod
     def _new_meta(
