@@ -20,7 +20,7 @@ from pocketsync.cli._errors import EXIT_USER_ERROR, CliError
 from pocketsync.cli._output import emit_diagnostic, emit_result
 from pocketsync.cli._signals import install_signal_handlers, run_until_signal
 from pocketsync.enrich.gateway import EMBED_DIMS, EMBED_MODEL
-from pocketsync.serve import Service
+from pocketsync.serve import Service, ServiceTiming
 
 
 def prepare_store(rt: _runtime.Runtime) -> None:
@@ -59,7 +59,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         reconciler=rt.reconciler(),
         worker=rt.worker(),
         publisher=rt.publisher(),
-        reconcile_interval=s.reconcile_interval,
+        timing=ServiceTiming(reconcile_interval=s.reconcile_interval),
     )
 
     def started() -> None:

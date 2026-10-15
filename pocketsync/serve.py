@@ -29,6 +29,7 @@ from __future__ import annotations
 import queue as queue_mod
 import threading
 import time
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from pocketsync.cli._errors import EXIT_ENV_ERROR, CliError
@@ -67,19 +68,42 @@ def merge_ids(recording_id: str, payload: dict[str, Any]) -> list[tuple[str, str
     """
     rec = payload.get("recording")
     containers = [payload] + ([rec] if isinstance(rec, dict) else [])
+    dst = _merge_destination(recording_id, containers)
+    if dst is not None:
+        return [(recording_id, dst)]
+    return [(s, recording_id) for s in _merge_sources(recording_id, containers)]
+
+
+def _merge_destination(recording_id: str, containers: list[dict[str, Any]]) -> str | None:
+    """The first ``merged_into``-style id that is not ``recording_id`` itself."""
     for c in containers:
         for key in _DST_KEYS:
             dst = c.get(key)
             if isinstance(dst, dict):
                 dst = dst.get("id")
             if dst not in (None, "") and str(dst) != recording_id:
-                return [(recording_id, str(dst))]
+                return str(dst)
+    return None
+
+
+def _merge_sources(recording_id: str, containers: list[dict[str, Any]]) -> list[str]:
+    """The first non-empty ``merged_from``-style id list, minus ``recording_id`` itself."""
     for c in containers:
         for key in _SRC_KEYS:
             srcs = [s for s in _ids(c.get(key)) if s != recording_id]
             if srcs:
-                return [(s, recording_id) for s in srcs]
+                return srcs
     return []
+
+
+@dataclass(frozen=True)
+class ServiceTiming:
+    """Loop intervals and the shutdown join timeout for :class:`Service` (seconds)."""
+
+    reconcile_interval: float = 300.0
+    enrich_interval: float = DEFAULT_ENRICH_INTERVAL
+    drain_interval: float = DEFAULT_DRAIN_INTERVAL
+    join_timeout: float = DEFAULT_JOIN_TIMEOUT
 
 
 class Service:
@@ -101,10 +125,7 @@ class Service:
         reconciler: Any = None,
         worker: Any = None,
         publisher: Any = None,
-        reconcile_interval: float = 300.0,
-        enrich_interval: float = DEFAULT_ENRICH_INTERVAL,
-        drain_interval: float = DEFAULT_DRAIN_INTERVAL,
-        join_timeout: float = DEFAULT_JOIN_TIMEOUT,
+        timing: ServiceTiming | None = None,
         stop_event: threading.Event | None = None,
         server_factory: Callable[..., Any] = WebhookServer,
     ) -> None:
@@ -115,10 +136,11 @@ class Service:
         self.reconciler = reconciler
         self.worker = worker
         self.publisher = publisher
-        self.reconcile_interval = reconcile_interval
-        self.enrich_interval = enrich_interval
-        self.drain_interval = drain_interval
-        self.join_timeout = join_timeout
+        t = timing or ServiceTiming()
+        self.reconcile_interval = t.reconcile_interval
+        self.enrich_interval = t.enrich_interval
+        self.drain_interval = t.drain_interval
+        self.join_timeout = t.join_timeout
         self.stop_event = stop_event or threading.Event()
         self.queue: queue_mod.Queue[Any] = queue_mod.Queue()  # unbounded on purpose
         self.server = server_factory(host, port, secret=secret, state=state, queue=self.queue)

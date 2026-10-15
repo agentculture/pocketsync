@@ -213,6 +213,7 @@ def test_audio_url_404_is_audio_not_found():
 
     body = io.BytesIO(b'{"success": false, "error": "recording audio file not found"}')
     err = urllib.error.HTTPError("u", 404, "x", {}, body)
+    src = PocketHttpSource("pk_test")
     with mock.patch(TARGET, side_effect=err):
         with pytest.raises(AudioNotFound):
-            PocketHttpSource("pk_test").get_audio_url("rec-1", expires_in=60)
+            src.get_audio_url("rec-1", expires_in=60)

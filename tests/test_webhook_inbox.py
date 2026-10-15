@@ -10,7 +10,7 @@ from __future__ import annotations
 import mongomock
 import pytest
 
-from pocketsync.serve import Service
+from pocketsync.serve import Service, ServiceTiming
 from pocketsync.state import INBOX_MAX_ATTEMPTS, MemoryStateStore, MongoStateStore
 from tests.cli_fakes import SECRET, FakeRuntime, install, rec
 
@@ -72,7 +72,7 @@ def _service(rt, store_sink, state):
         state=state,
         secret=SECRET,
         port=0,
-        join_timeout=5.0,
+        timing=ServiceTiming(join_timeout=5.0),
     )
 
 
@@ -142,7 +142,7 @@ def test_start_requeues_docs_classified_under_a_stale_taxonomy(tmp_path, monkeyp
         secret=SECRET,
         port=0,
         worker=Worker(),
-        join_timeout=5.0,
+        timing=ServiceTiming(join_timeout=5.0),
     )
     svc.start()
     svc.stop()

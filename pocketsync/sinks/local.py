@@ -245,11 +245,8 @@ class LocalSink:
             same = meta.get("content_hash") == chash
             need_audio = audio_url is not None and fs.audio is None
             if same and not need_audio:
-                if not dry_run and bool(meta.get("audio_absent")) != (
-                    audio_absent and not fs.audio
-                ):
-                    meta["audio_absent"] = audio_absent and not fs.audio
-                    self._write_meta(d, meta)  # a bookkeeping flag only; content unchanged
+                if not dry_run:
+                    self._sync_absent_flag(d, meta, fs, audio_absent)
                 return PutResult(False, chash, locs, fs)
         else:
             y, m = self._year_month(rec)
@@ -262,35 +259,57 @@ class LocalSink:
 
         d.mkdir(parents=True, exist_ok=True)
         if not same:
-            tj = (
-                json.dumps(
-                    {"id": rec.id, "segments": [s.to_dict() for s in rec.segments]},
-                    indent=2,
-                    ensure_ascii=False,
-                )
-                + "\n"
-            ).encode()
-            tm = render_transcript_md(rec).encode()
-            sm = render_summary_md(rec).encode()
-            for name, data in (("transcript.json", tj), ("transcript.md", tm), ("summary.md", sm)):
-                _atomic_write(d / name, data)
-            fs = replace(
-                fs,
-                transcript_json=_ref(self.root, d / "transcript.json", tj),
-                transcript_md=_ref(self.root, d / "transcript.md", tm),
-                summary_md=_ref(self.root, d / "summary.md", sm),
-            )
+            fs = self._write_text(d, rec, fs)
         # Audio is immutable per recording: a content change rewrites text, never re-downloads.
         if audio_url is not None and fs.audio is None:
-            try:
-                a = download_audio(audio_url, d, opener=self._opener)
-            except (OSError, ValueError, http.client.HTTPException, CliError) as exc:
-                raise AudioDownloadError(f"audio download failed for {rec.id}: {exc}") from exc
-            fs = replace(
-                fs, audio=replace(a, rel_path=(d / a.rel_path).relative_to(self.root).as_posix())
-            )
+            fs = self._fetch_audio(d, rec, fs, audio_url)
+        new_meta = self._new_meta(rec, chash, meta, fs, audio_absent)
+        fs = replace(fs, meta=self._write_meta(d, new_meta))  # meta.json last
+        return PutResult(True, chash, locs, fs)
 
-        new_meta = {
+    def _sync_absent_flag(
+        self, d: Path, meta: dict[str, Any], fs: FileSet, audio_absent: bool
+    ) -> None:
+        """Persist a changed ``audio_absent`` flag; a bookkeeping write, content unchanged."""
+        absent = bool(audio_absent and not fs.audio)
+        if bool(meta.get("audio_absent")) != absent:
+            meta["audio_absent"] = absent
+            self._write_meta(d, meta)
+
+    def _write_text(self, d: Path, rec: Recording, fs: FileSet) -> FileSet:
+        tj = (
+            json.dumps(
+                {"id": rec.id, "segments": [s.to_dict() for s in rec.segments]},
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode()
+        tm = render_transcript_md(rec).encode()
+        sm = render_summary_md(rec).encode()
+        for name, data in (("transcript.json", tj), ("transcript.md", tm), ("summary.md", sm)):
+            _atomic_write(d / name, data)
+        return replace(
+            fs,
+            transcript_json=_ref(self.root, d / "transcript.json", tj),
+            transcript_md=_ref(self.root, d / "transcript.md", tm),
+            summary_md=_ref(self.root, d / "summary.md", sm),
+        )
+
+    def _fetch_audio(self, d: Path, rec: Recording, fs: FileSet, audio_url: str) -> FileSet:
+        try:
+            a = download_audio(audio_url, d, opener=self._opener)
+        except (OSError, ValueError, http.client.HTTPException, CliError) as exc:
+            raise AudioDownloadError(f"audio download failed for {rec.id}: {exc}") from exc
+        return replace(
+            fs, audio=replace(a, rel_path=(d / a.rel_path).relative_to(self.root).as_posix())
+        )
+
+    @staticmethod
+    def _new_meta(
+        rec: Recording, chash: str, meta: dict[str, Any], fs: FileSet, audio_absent: bool
+    ) -> dict[str, Any]:
+        return {
             "id": rec.id,
             "title": rec.title,
             "created_at": rec.created_at,
@@ -307,8 +326,6 @@ class LocalSink:
             "files": {k: v for k, v in fs.to_dict().items() if k != "meta"},
             "audio_absent": bool(audio_absent and fs.audio is None),
         }
-        fs = replace(fs, meta=self._write_meta(d, new_meta))  # meta.json last
-        return PutResult(True, chash, locs, fs)
 
     def get_state(self, recording_id: str) -> RecordState | None:
         found = self._read_meta(recording_id)

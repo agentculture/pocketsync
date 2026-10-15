@@ -141,8 +141,9 @@ class MongoSink:
         files: FileSet | None = None,
         *,
         dry_run: bool = False,
-        audio_url: str | None = None,  # Mongo stores refs, never audio bytes
+        audio_url: str | None = None,
     ) -> PutResult:
+        del audio_url  # Sink protocol parameter; Mongo stores file refs, never audio bytes
         chash = rec.content_hash()
         locs = {"collection": vindex.COLLECTION, "id": rec.id}
         if dry_run:

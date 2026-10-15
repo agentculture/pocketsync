@@ -47,6 +47,7 @@ class ReadOnlyState:
         self.errors_seen: list[dict[str, Any]] = []
 
     def record_error(self, where: str, message: str, *, when: str | None = None) -> None:
+        del when  # StateStore signature; a dry run reports errors without a timestamp
         self.errors_seen.append({"where": where, "message": message})
 
     def __getattr__(self, name: str) -> Any:

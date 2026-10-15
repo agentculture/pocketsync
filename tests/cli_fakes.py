@@ -19,6 +19,7 @@ from pocketsync.enrich.gateway import EMBED_DIMS, Classification
 from pocketsync.events import OutboxPublisher
 from pocketsync.model import Recording, TranscriptSegment
 from pocketsync.pocket.fake import FakePocketSource
+from pocketsync.reconcile import ReconcilePolicy
 from pocketsync.sinks.local import LocalSink
 from pocketsync.sinks.mongo import MongoSink
 from pocketsync.state import MongoStateStore
@@ -197,7 +198,7 @@ class FakeRuntime(_runtime.Runtime):
         return self.fake_gateway
 
     def reconciler_options(self) -> dict[str, Any]:
-        return {"sleep": lambda s: None, "page_delay": 0}
+        return {"sleep": lambda s: None, "policy": ReconcilePolicy(page_delay=0)}
 
     def gateway_probe(self) -> dict[str, Any]:
         if isinstance(self.probe_result, Exception):

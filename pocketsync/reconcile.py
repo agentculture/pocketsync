@@ -122,6 +122,19 @@ class ReconcileResult:
         }
 
 
+@dataclass(frozen=True)
+class ReconcilePolicy:
+    """Paging, overlap and backoff knobs for :class:`Reconciler` (defaults fit ~50 calls/min)."""
+
+    overlap_days: int = DEFAULT_OVERLAP_DAYS
+    page_limit: int = MAX_PAGE_LIMIT
+    page_delay: float = DEFAULT_PAGE_DELAY
+    grace: float = DEFAULT_GRACE
+    backoff_base: float = DEFAULT_BACKOFF_BASE
+    backoff_cap: float = DEFAULT_BACKOFF_CAP
+    max_retries: int = DEFAULT_MAX_RETRIES
+
+
 class Reconciler:
     """Pages Pocket's list API and lands what the store does not already have."""
 
@@ -132,13 +145,7 @@ class Reconciler:
         files_sink: Sink,
         store_sink: Sink,
         state: StateStore,
-        overlap_days: int = DEFAULT_OVERLAP_DAYS,
-        page_limit: int = MAX_PAGE_LIMIT,
-        page_delay: float = DEFAULT_PAGE_DELAY,
-        grace: float = DEFAULT_GRACE,
-        backoff_base: float = DEFAULT_BACKOFF_BASE,
-        backoff_cap: float = DEFAULT_BACKOFF_CAP,
-        max_retries: int = DEFAULT_MAX_RETRIES,
+        policy: ReconcilePolicy | None = None,
         dry_run: bool = False,
         with_audio: bool = True,
         initial_since: str | date | datetime | None = None,
@@ -149,13 +156,14 @@ class Reconciler:
         self.files_sink = files_sink
         self.store_sink = store_sink
         self.state = state
-        self.overlap_days = overlap_days
-        self.page_limit = min(page_limit, MAX_PAGE_LIMIT)
-        self.page_delay = page_delay
-        self.grace = grace
-        self.backoff_base = backoff_base
-        self.backoff_cap = backoff_cap
-        self.max_retries = max_retries
+        p = policy or ReconcilePolicy()
+        self.overlap_days = p.overlap_days
+        self.page_limit = min(p.page_limit, MAX_PAGE_LIMIT)
+        self.page_delay = p.page_delay
+        self.grace = p.grace
+        self.backoff_base = p.backoff_base
+        self.backoff_cap = p.backoff_cap
+        self.max_retries = p.max_retries
         self.dry_run = dry_run
         self.with_audio = with_audio
         self.initial_since = initial_since

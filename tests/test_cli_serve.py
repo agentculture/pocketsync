@@ -20,7 +20,7 @@ from pocketsync import vindex
 from pocketsync.cli import main
 from pocketsync.cli._commands import serve as serve_cmd
 from pocketsync.cli._commands import watch as watch_cmd
-from pocketsync.serve import Service, merge_ids
+from pocketsync.serve import Service, ServiceTiming, merge_ids
 from tests.cli_fakes import SECRET, FakeRuntime, install, rec
 
 REPO = Path(__file__).resolve().parents[1]
@@ -62,10 +62,9 @@ def make_service(rt, **kw):
         reconciler=rt.reconciler(),
         worker=rt.worker(),
         publisher=rt.publisher(),
-        reconcile_interval=3600,
-        enrich_interval=0.05,
-        drain_interval=0.05,
-        join_timeout=5.0,
+        timing=ServiceTiming(
+            reconcile_interval=3600, enrich_interval=0.05, drain_interval=0.05, join_timeout=5.0
+        ),
     )
     opts.update(kw)
     return Service(**opts)
@@ -114,7 +113,8 @@ def test_deleted_and_merged_events_route_to_handlers(rt):
     rt.pocket.merge("r0005", "r0002")
     svc.handle("r0002", "recording.merged", {"merged_recording_ids": ["r0005"]})
     assert doc(rt, "r0005")["merged_into"] == "r0002"
-    assert svc.stats["merged"] == 1 and svc.stats["deleted"] == 1
+    assert svc.stats["merged"] == 1
+    assert svc.stats["deleted"] == 1
 
 
 def test_merged_without_ids_records_error(rt):
@@ -174,7 +174,8 @@ def test_serve_verb_prepares_indexes_and_exits_0(rt, monkeypatch, capsys):
     _stop_soon(monkeypatch, serve_cmd, delay=0.5)
     assert main(["serve", "--port", "0", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["stopped"] is True and out["leftover_threads"] == []
+    assert out["stopped"] is True
+    assert out["leftover_threads"] == []
     assert created == [("gemma2-embed", 768)]
     assert doc(rt, "r0001") is not None  # reconciler ran inside serve
 
@@ -184,7 +185,8 @@ def test_serve_refuses_vector_space_mismatch(rt, monkeypatch, capsys):
     _stop_soon(monkeypatch, serve_cmd)
     assert main(["serve", "--port", "0"]) == 1
     err = capsys.readouterr().err
-    assert "vector space mismatch" in err and "reembed --apply" in err
+    assert "vector space mismatch" in err
+    assert "reembed --apply" in err
 
 
 def test_serve_requires_webhook_secret(tmp_path, monkeypatch, capsys):
@@ -198,7 +200,8 @@ def test_watch_runs_reconciler_until_stopped(rt, monkeypatch, capsys):
     assert main(["watch", "--interval", "0.05", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["stopped"] is True
-    assert doc(rt, "r0001") is not None and doc(rt, "r0002") is not None
+    assert doc(rt, "r0001") is not None
+    assert doc(rt, "r0002") is not None
     assert rt.counting_state.get_watermark() is not None
 
 

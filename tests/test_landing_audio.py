@@ -163,12 +163,15 @@ def test_recording_without_audio_in_pocket_is_not_retried_every_pass(tmp_path):
     env = Env(tmp_path, [rec(1)])
     env.src.no_audio.add("r0001")
     first = env.rc().reconcile()
-    assert first.landed == 1 and first.ok
+    assert first.landed == 1
+    assert first.ok
     st = env.local.get_state("r0001")
-    assert st.audio_absent and not st.has_audio
+    assert st.audio_absent
+    assert not st.has_audio
     calls = env.src.calls.count("get_audio_url")
     second = env.rc().reconcile()
-    assert second.skipped == 1 and second.landed == 0
+    assert second.skipped == 1
+    assert second.landed == 0
     assert env.src.calls.count("get_audio_url") == calls  # no retry while Pocket is unchanged
     assert env.state.errors() == []  # absent audio is a fact, not an error
 
@@ -181,7 +184,8 @@ def test_absent_audio_is_retried_when_pocket_updates_the_recording(tmp_path):
     env.src.edit("r0001", summary="Pocket attached the audio later.")
     env.rc().reconcile()
     st = env.local.get_state("r0001")
-    assert st.has_audio and not st.audio_absent
+    assert st.has_audio
+    assert not st.audio_absent
 
 
 def test_transient_audio_failure_is_recorded_as_an_error(tmp_path, monkeypatch):
