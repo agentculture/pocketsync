@@ -130,7 +130,7 @@ def test_success_writes_enrichment_and_one_event(store, outbox):
     assert evs[0]["content_hash"] == doc(store)["content_hash"]
     assert evs[0]["enrichment"]["labels"] == ["meeting"]
     assert evs[0]["sinks"]["files"]["transcript_md"] == "2026/05/r1/transcript.md"
-    assert evs[0]["sinks"]["mongo"] == {"collection": vindex.COLLECTION, "id": "r1"}
+    assert evs[0]["sinks"]["mongo"] == {"collection": vindex.COLLECTION, "doc_id": "r1"}
     # second run: nothing pending, no more events
     assert w.run_once()["done"] == 0
     assert len(events(outbox)) == 1
@@ -258,3 +258,14 @@ def test_mark_for_reclassification(store, outbox):
     assert mark_for_reclassification(store, "tax-v2") == 2
     assert doc(store, "a")["enrichment"]["status"] == "pending"
     assert len(store.pending_enrichment(10)) == 2
+
+
+def test_reclassify_stale_requeues_only_docs_classified_under_another_taxonomy(store, outbox):
+    store.put_recording(rec("r1"))
+    store.put_recording(rec("r2", summary="", text=""))  # no text: done, never classified
+    EnrichmentWorker(store, FakeGateway(tax="tax-old"), outbox).run_once()
+    w = EnrichmentWorker(store, FakeGateway(tax=TAX), outbox)
+    assert w.reclassify_stale(TAX) == 1
+    assert doc(store, "r1")["enrichment"]["status"] == "pending"
+    assert doc(store, "r2")["enrichment"]["status"] == "done"
+    assert w.reclassify_stale(TAX) == 0  # r1 is pending now; r2 is never re-queued

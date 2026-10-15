@@ -187,20 +187,29 @@ class PocketHttpSource:
         drawing a 429.
         """
         remaining = _header_float(headers, "X-Ratelimit-Remaining")
-        reset = _header_float(headers, "X-Ratelimit-Reset")
-        with self._throttle_lock:
-            self._throttle_until = reset if remaining is not None and remaining <= 0 else None
+        if remaining is not None and remaining <= 0:
+            self._arm(_header_float(headers, "X-Ratelimit-Reset"))
 
     def _note_throttled(self, headers: Any) -> None:
         """A 429 means the window is exhausted: wait out its reset before the next request."""
-        reset = _header_float(headers, "X-Ratelimit-Reset")
-        if reset is not None:
-            with self._throttle_lock:
+        self._arm(_header_float(headers, "X-Ratelimit-Reset"))
+
+    def _arm(self, reset: float | None) -> None:
+        # Only ever extend the deadline: a concurrent response that still had quota left
+        # must not disarm a window another thread just saw exhausted.
+        if reset is None:
+            return
+        with self._throttle_lock:
+            if self._throttle_until is None or reset > self._throttle_until:
                 self._throttle_until = reset
 
     def _await_window(self) -> None:
+        # Every caller waits until the deadline passes (serve shares this source between
+        # threads); the deadline is dropped only once it has expired.
         with self._throttle_lock:
-            until, self._throttle_until = self._throttle_until, None
+            until = self._throttle_until
+            if until is not None and until <= self._clock():
+                self._throttle_until = until = None
         if until is None:
             return
         wait = min(self._max_throttle, until - self._clock())

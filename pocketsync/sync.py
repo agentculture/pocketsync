@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 from pocketsync.cli._errors import CliError
 from pocketsync.pocket.base import PocketSource
-from pocketsync.sinks.base import Sink
+from pocketsync.sinks.base import AudioDownloadError, Sink
 
 AUDIO_URL_TTL = 3600
 
@@ -47,26 +47,35 @@ def land(
     files_sink: Sink,
     store_sink: Sink,
     dry_run: bool = False,
+    with_audio: bool = True,
 ) -> LandResult:
     """Fetch ``recording_id`` canonically and land it in both sinks.
 
     Pocket errors fetching the recording propagate (nothing is written). A failure fetching
-    the audio URL does not: text lands, ``audio_missing`` / ``audio_error`` are set on the
-    result, and the next landing retries the audio (the local sink downloads it when absent).
-    In dry-run mode nothing is written and no audio URL is requested; ``planned`` describes
-    the writes that would happen.
+    the audio URL or downloading the audio does not: text lands, ``audio_missing`` /
+    ``audio_error`` are set on the result, and the next landing retries the audio (the files
+    sink reports ``has_audio``, which the reconciler checks). A signed audio URL is requested
+    only when the files sink has no audio yet, since audio never changes for a recording.
+    ``with_audio=False`` lands text only. In dry-run mode nothing is written and no audio URL
+    is requested; ``planned`` describes the writes that would happen.
     """
     rec = source.get_recording(recording_id, include_transcript=True, include_summarizations=True)
 
     audio_url: str | None = None
     audio_error: str | None = None
-    if not dry_run:
-        try:
-            audio_url = source.get_audio_url(recording_id, expires_in=AUDIO_URL_TTL)
-        except CliError as exc:
-            audio_error = exc.message
+    if with_audio and not dry_run:
+        fstate = files_sink.get_state(rec.id)
+        if not (fstate and fstate.has_audio):
+            try:
+                audio_url = source.get_audio_url(recording_id, expires_in=AUDIO_URL_TTL)
+            except CliError as exc:
+                audio_error = exc.message
 
-    f = files_sink.put_recording(rec, dry_run=dry_run, audio_url=audio_url)
+    try:
+        f = files_sink.put_recording(rec, dry_run=dry_run, audio_url=audio_url)
+    except AudioDownloadError as exc:
+        audio_error = exc.message
+        f = files_sink.put_recording(rec, dry_run=dry_run, audio_url=None)
     # Hand the store the file refs. When nothing changed locally the stored refs are already
     # right (and an unchanged local result omits the meta ref), so only pass them if the store
     # has never seen this recording.

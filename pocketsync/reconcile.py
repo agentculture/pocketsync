@@ -57,6 +57,19 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime(_TS_FORMAT)
 
 
+def _same_instant(stored: str | None, listed: str | None) -> bool:
+    """True only when both timestamps exist and name the same instant (format-insensitive).
+
+    A missing ``updated_at`` can never prove "unchanged", so it always re-lands.
+    """
+    if not stored or not listed:
+        return False
+    if stored == listed:
+        return True
+    a, b = _parse_ts(stored), _parse_ts(listed)
+    return a is not None and a == b
+
+
 def _parse_ts(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -121,6 +134,7 @@ class Reconciler:
         backoff_cap: float = DEFAULT_BACKOFF_CAP,
         max_retries: int = DEFAULT_MAX_RETRIES,
         dry_run: bool = False,
+        with_audio: bool = True,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], datetime] = _utcnow,
     ) -> None:
@@ -136,6 +150,7 @@ class Reconciler:
         self.backoff_cap = backoff_cap
         self.max_retries = max_retries
         self.dry_run = dry_run
+        self.with_audio = with_audio
         self._sleep = sleep
         self._clock = clock
 
@@ -209,7 +224,11 @@ class Reconciler:
     def _handle(self, item, now: datetime, result: ReconcileResult, count: bool, where: str):
         result.listed += 1
         exists, stored_updated = self._stored(item.id)
-        if exists and stored_updated == item.updated_at:
+        if (
+            exists
+            and _same_instant(stored_updated, item.updated_at)
+            and not self._audio_wanted(item.id)
+        ):
             result.skipped += 1
             return
         try:
@@ -220,6 +239,7 @@ class Reconciler:
                     files_sink=self.files_sink,
                     store_sink=self.store_sink,
                     dry_run=self.dry_run,
+                    with_audio=self.with_audio,
                 )
             )
         except RateLimited:
@@ -233,6 +253,13 @@ class Reconciler:
         if count and not exists and self._older_than_grace(item, now):
             result.missed += 1
             self.state.increment(COUNTER_WEBHOOK_MISSED)
+
+    def _audio_wanted(self, recording_id: str) -> bool:
+        """Audio is wanted and the files sink does not have it yet (retry missing audio)."""
+        if not self.with_audio:
+            return False
+        fstate = self.files_sink.get_state(recording_id)
+        return not (fstate and fstate.has_audio)
 
     def _stored(self, recording_id: str) -> tuple[bool, str | None]:
         """(has a doc, its Pocket ``source.updated_at``) without any Pocket call."""

@@ -26,7 +26,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Pocket client: a hard 429 now arms the rate-limit throttle for the next request, and the throttle state is lock-guarded (it is shared by serve's landing and reconcile threads)
+- Pocket client: a hard 429 arms the rate-limit throttle, every thread sharing the client waits out an armed window, and a concurrent response with quota left no longer disarms it
+- Webhooks: the dedupe key is a durable inbox entry, kept pending until handled and replayed on start and after failures, so an acknowledged delete or merge survives a restart or a store blip
+- Landing: a failed audio download no longer aborts the reconcile pass (text still lands); missing audio is retried by later passes; audio is fetched once and never re-downloaded on content changes
+- Reconciler: change detection compares timestamps format-insensitively and never treats a missing updated_at as unchanged
+- Events: sinks.mongo carries doc_id as documented (was id)
+- Enrichment: gateway 429/500/502/504 are retried instead of marking the doc as error; serve re-queues docs classified under a stale taxonomy at start
+- Docs: CLAUDE.md, the three sibling harness files and the README now describe what is built instead of a scaffold
 
 ## [0.10.1] - 2026-10-14
 

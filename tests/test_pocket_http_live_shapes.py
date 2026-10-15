@@ -173,3 +173,33 @@ def test_non_429_error_does_not_arm_the_throttle():
             src.list_recordings(limit=1)
         src.list_recordings(limit=1)
     assert slept == []
+
+
+def test_armed_throttle_holds_every_caller_until_reset():
+    # code review of PR #5 (finding 6): the first waiter must not disarm the window for
+    # the other thread that shares this source.
+    slept: list[float] = []
+    src = PocketHttpSource("pk_test", sleep=slept.append, clock=lambda: 1000.0)
+    src._note_throttled({"X-Ratelimit-Reset": "1020"})
+    src._await_window()
+    src._await_window()
+    assert slept == [pytest.approx(20.0, abs=1.0), pytest.approx(20.0, abs=1.0)]
+
+
+def test_success_with_remaining_does_not_clear_an_armed_throttle():
+    slept: list[float] = []
+    src = PocketHttpSource("pk_test", sleep=slept.append, clock=lambda: 1000.0)
+    src._note_throttled({"X-Ratelimit-Reset": "1020"})
+    src._note_rate_limit({"X-Ratelimit-Remaining": "7", "X-Ratelimit-Reset": "1060"})
+    src._await_window()
+    assert slept == [pytest.approx(20.0, abs=1.0)]
+
+
+def test_expired_throttle_does_not_wait():
+    slept: list[float] = []
+    now = [1000.0]
+    src = PocketHttpSource("pk_test", sleep=slept.append, clock=lambda: now[0])
+    src._note_throttled({"X-Ratelimit-Reset": "1020"})
+    now[0] = 1021.0
+    src._await_window()
+    assert slept == []

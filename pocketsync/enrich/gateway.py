@@ -127,6 +127,11 @@ class Classification:
         return self.labels[0] if self.labels else None
 
 
+#: Statuses worth retrying: lane loading or absent (503/404), throttled (429), or a proxy /
+#: gateway hiccup (500/502/504). Anything else is a request bug and is not retried.
+_TRANSIENT_STATUSES = frozenset({404, 429, 500, 502, 503, 504})
+
+
 class GatewayClient:
     def __init__(
         self,
@@ -157,7 +162,7 @@ class GatewayClient:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                 return json.loads(resp.read().decode())
         except urllib.error.HTTPError as exc:
-            if exc.code in (503, 404):
+            if exc.code in _TRANSIENT_STATUSES:
                 raise EnrichmentUnavailable(
                     f"gateway returned {exc.code} for {path}",
                     "retry later; the model lane may be loading or not deployed",

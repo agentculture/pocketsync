@@ -12,6 +12,7 @@ import pytest
 
 from pocketsync.cli._errors import CliError
 from pocketsync.model import ActionItem, Recording, TranscriptSegment
+from pocketsync.sinks.base import AudioDownloadError
 from pocketsync.sinks.local import LocalSink, download_audio
 
 PAYLOAD = b"synthetic-audio-bytes" * 5000
@@ -156,8 +157,9 @@ def test_layout_and_meta_last(tmp_path, monkeypatch):
 
 def test_failed_audio_writes_no_meta(tmp_path):
     sink = LocalSink(tmp_path, opener=lambda u: FakeResp(PAYLOAD, fail_after=100))
-    with pytest.raises(ConnectionResetError):
+    with pytest.raises(AudioDownloadError) as ei:
         sink.put_recording(make_rec(), audio_url="https://x.example/a")
+    assert isinstance(ei.value.__cause__, ConnectionResetError)
     d = tmp_path / "2026" / "03" / "rec1"
     assert not (d / "meta.json").exists()
     assert not list(d.glob("audio*"))

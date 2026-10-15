@@ -108,15 +108,21 @@ class _Handler(BaseHTTPRequestHandler):
             ctx.state.record_error("webhook", f"rejected: {result.reason}")
             self._reply(401, "unauthorized")
             return
-        if not ctx.state.mark_seen(dedupe_string(event.dedupe_key)):
+        key = dedupe_string(event.dedupe_key)
+        item = {
+            "recording_id": event.recording_id,
+            "event_type": event.event_type,
+            "payload": event.payload,
+        }
+        if not ctx.state.mark_seen(key, item=item):
             self._reply(200, "duplicate")
             return
         ctx.state.set_last_webhook_at(datetime.fromtimestamp(ctx.clock(), timezone.utc).isoformat())
-        # The dedupe key is consumed above, before the enqueue. That is safe only because the
-        # queue is unbounded: if it were bounded, a Full here would 503 and Pocket's retry
-        # would then be dropped as a duplicate (only the reconciler would recover it).
+        # The dedupe key above doubles as a durable inbox entry: it stays pending until the
+        # landing consumer has handled the event, so a crash, restart or failed handler is
+        # replayed rather than Pocket's redelivery being dropped as a duplicate.
         try:
-            ctx.queue.put_nowait((event.recording_id, event.event_type, event.payload))
+            ctx.queue.put_nowait((event.recording_id, event.event_type, event.payload, key))
         except queue_mod.Full:
             ctx.state.record_error("webhook", "queue full; event not enqueued")
             self._reply(503, "busy")

@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
+from pocketsync.cli._errors import EXIT_ENV_ERROR, CliError
 from pocketsync.model import Recording
 
 
@@ -62,6 +63,13 @@ class PutResult:
     files: FileSet = field(default_factory=FileSet)
 
 
+class AudioDownloadError(CliError):
+    """Streaming the audio bytes failed. Text can still land; a later landing retries."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(EXIT_ENV_ERROR, message, "Retry later; the next landing retries audio.")
+
+
 @dataclass
 class RecordState:
     """What a sink knows about a recording (for cursor/idempotence and tombstones)."""
@@ -69,6 +77,7 @@ class RecordState:
     content_hash: str
     deleted_in_pocket: bool = False
     merged_into: str | None = None
+    has_audio: bool = False
 
 
 @runtime_checkable

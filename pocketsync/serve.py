@@ -85,6 +85,9 @@ def merge_ids(recording_id: str, payload: dict[str, Any]) -> list[tuple[str, str
 class Service:
     """All of ``serve`` in one object. ``reconciler``/``worker``/``publisher`` are optional."""
 
+    #: Seconds of consumer idleness between retries of failed inbox entries.
+    inbox_retry_interval: float = 300.0
+
     def __init__(
         self,
         source: Any,
@@ -151,6 +154,12 @@ class Service:
                 lambda: self.reconciler.run_forever(self.reconcile_interval, self.stop_event),
             )
         if self.worker is not None:
+            reclassify = getattr(self.worker, "reclassify_stale", None)
+            if reclassify is not None:
+                try:
+                    reclassify()
+                except Exception as exc:  # a taxonomy re-queue must not block serving
+                    self.state.record_error("enrichment", f"reclassify on start: {exc}")
             self._spawn(
                 "enrichment", lambda: self._every(self.enrich_interval, self.worker.run_once)
             )
@@ -185,15 +194,57 @@ class Service:
     # -- landing consumer ----------------------------------------------------------------
 
     def _landing_loop(self) -> None:
+        self.process_pending()
+        last_sweep = time.monotonic()
         while True:
             try:
                 item = self.queue.get(timeout=_POLL)
             except queue_mod.Empty:
                 if self.stop_event.is_set():
                     return
+                if time.monotonic() - last_sweep >= self.inbox_retry_interval:
+                    self.process_pending()
+                    last_sweep = time.monotonic()
                 continue
-            rid, event_type, payload = item
-            self.handle(rid, event_type, payload or {})
+            self._consume(item)
+
+    def _consume(self, item: tuple[Any, ...]) -> None:
+        rid, event_type, payload, *rest = item
+        key = rest[0] if rest else None
+        ok = self.handle(rid, event_type, payload or {})
+        if key is not None:
+            self._settle(key, ok)
+
+    def _settle(self, key: str, ok: bool) -> None:
+        try:
+            if ok:
+                self.state.inbox_done(key)
+            else:
+                self.state.inbox_fail(key, "handler failed; see errors")
+        except Exception as exc:  # the entry stays pending and is replayed later
+            self._error(f"inbox {key}: {exc}")
+
+    def process_pending(self) -> int:
+        """Handle every pending inbox entry (acknowledged, never handled); return successes.
+
+        Runs when the landing consumer starts (replaying what a previous process lost) and
+        again whenever it has been idle for ``inbox_retry_interval``. Handlers are idempotent,
+        so an entry that is also still queued is harmless.
+        """
+        try:
+            pending = self.state.inbox_pending()
+        except Exception as exc:
+            self._error(f"inbox replay: {exc}")
+            return 0
+        done = 0
+        for entry in pending:
+            item = entry["item"]
+            ok = self.handle(
+                item.get("recording_id"), item.get("event_type", ""), item.get("payload") or {}
+            )
+            self._settle(entry["key"], ok)
+            done += ok
+        return done
 
     def _error(self, message: str) -> None:
         with self._lock:
@@ -211,11 +262,11 @@ class Service:
         land(rid, self.source, files_sink=self.files_sink, store_sink=self.store_sink)
         self._bump("landed")
 
-    def handle(self, rid: str | None, event_type: str, payload: dict[str, Any]) -> None:
-        """Route one webhook event. Never raises: failures are recorded in the state store."""
+    def handle(self, rid: str | None, event_type: str, payload: dict[str, Any]) -> bool:
+        """Route one webhook event; True when handled. Never raises: failures are recorded."""
         if not rid:
             self._error(f"{event_type}: event carried no recording id")
-            return
+            return False
         sinks = {"files_sink": self.files_sink, "store_sink": self.store_sink}
         try:
             if event_type == EVENT_DELETED:
@@ -229,7 +280,7 @@ class Service:
                         "re-landing it and leaving the rest to the reconciler"
                     )
                     self._land(rid)
-                    return
+                    return True
                 for src, dst in pairs:
                     handle_merged(src, dst, **sinks)
                     self._bump("merged")
@@ -239,5 +290,8 @@ class Service:
                 self._land(rid)
         except CliError as exc:
             self._error(f"{rid}: {event_type}: {exc.message}")
+            return False
         except Exception as exc:  # a bug or a backend outage must not kill the consumer
             self._error(f"{rid}: {event_type}: {type(exc).__name__}: {exc}")
+            return False
+        return True

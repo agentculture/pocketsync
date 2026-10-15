@@ -68,11 +68,12 @@ def test_verified_event_enqueued_and_marked(server):
     status, headers, _ = post(srv, event_body())
     assert status in (200, 202)
     assert headers["Cache-Control"] == "no-store"
-    rid, etype, payload = q.get_nowait()
-    assert (rid, etype) == ("rec-1", "recording.completed")
+    rid, etype, payload, key = q.get_nowait()
+    assert (rid, etype, key) == ("rec-1", "recording.completed", "recording.completed|rec-1|t1")
     assert payload["recording"]["id"] == "rec-1"
     assert state.get_last_webhook_at() is not None
-    assert state.mark_seen("recording.completed|rec-1|t1") is False  # already recorded
+    assert state.mark_seen(key) is False  # already recorded
+    assert [e["key"] for e in state.inbox_pending()] == [key]  # durable until handled
 
 
 def test_duplicate_acked_not_enqueued(server):

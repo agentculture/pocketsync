@@ -88,7 +88,7 @@ def test_classify(client):
     assert res.taxonomy_version == client.taxonomy.version
 
 
-@pytest.mark.parametrize("status", [503, 404])
+@pytest.mark.parametrize("status", [503, 404, 429, 500, 502, 504])
 def test_unavailable_is_retryable(client, status):
     Fake.status = status
     with pytest.raises(EnrichmentUnavailable) as ei:
@@ -120,3 +120,11 @@ def test_load_taxonomy_from_path(tmp_path):
     assert [x.name for x in load_taxonomy(p).labels] == ["a"]
     with pytest.raises(CliError):
         load_taxonomy(tmp_path / "missing.toml")
+
+
+@pytest.mark.parametrize("status", [400, 401, 422])
+def test_client_errors_are_not_retryable(client, status):
+    Fake.status = status
+    with pytest.raises(CliError) as ei:
+        client.embed(["a"])
+    assert not isinstance(ei.value, EnrichmentUnavailable)

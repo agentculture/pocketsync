@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -16,7 +17,7 @@ from urllib.parse import urlparse
 
 from pocketsync.cli._errors import EXIT_ENV_ERROR, EXIT_USER_ERROR, CliError
 from pocketsync.model import Recording
-from pocketsync.sinks.base import FileRef, FileSet, PutResult, RecordState
+from pocketsync.sinks.base import AudioDownloadError, FileRef, FileSet, PutResult, RecordState
 
 DEFAULT_CHUNK = 64 * 1024
 DEFAULT_AUDIO_EXT = ".m4a"
@@ -271,8 +272,12 @@ class LocalSink:
                 transcript_md=_ref(self.root, d / "transcript.md", tm),
                 summary_md=_ref(self.root, d / "summary.md", sm),
             )
-        if audio_url is not None and (fs.audio is None or not same):
-            a = download_audio(audio_url, d, opener=self._opener)
+        # Audio is immutable per recording: a content change rewrites text, never re-downloads.
+        if audio_url is not None and fs.audio is None:
+            try:
+                a = download_audio(audio_url, d, opener=self._opener)
+            except (OSError, ValueError, http.client.HTTPException, CliError) as exc:
+                raise AudioDownloadError(f"audio download failed for {rec.id}: {exc}") from exc
             fs = replace(
                 fs, audio=replace(a, rel_path=(d / a.rel_path).relative_to(self.root).as_posix())
             )
@@ -305,6 +310,7 @@ class LocalSink:
             content_hash=meta.get("content_hash", ""),
             deleted_in_pocket=bool(meta.get("deleted_in_pocket", False)),
             merged_into=meta.get("merged_into"),
+            has_audio=bool((meta.get("files") or {}).get("audio")),
         )
 
     def _update_meta(self, recording_id: str, **fields: Any) -> None:

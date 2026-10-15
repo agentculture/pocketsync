@@ -54,11 +54,15 @@ def _now_iso() -> str:
 
 
 def mark_for_reclassification(store: MongoSink, current_taxonomy_version: str) -> int:
-    """Set ``done`` docs enriched under a different taxonomy back to ``pending``; return count."""
+    """Set ``done`` docs classified under a different taxonomy back to ``pending``; return count.
+
+    Docs with no text are ``done`` without ever being classified (no ``taxonomy_version``),
+    so they are left alone rather than re-queued on every call.
+    """
     res = store.collection.update_many(
         {
             PATH_ENRICHMENT_STATUS: ENRICHMENT_DONE,
-            PATH_TAXONOMY_VERSION: {"$ne": current_taxonomy_version},
+            PATH_TAXONOMY_VERSION: {"$exists": True, "$ne": current_taxonomy_version},
         },
         {"$set": {PATH_ENRICHMENT_STATUS: ENRICHMENT_PENDING}},
     )
@@ -122,6 +126,11 @@ class EnrichmentWorker:
 
     # -- one doc -------------------------------------------------------------------------
 
+    def reclassify_stale(self, current_taxonomy_version: str | None = None) -> int:
+        """Re-queue docs classified under another taxonomy (c44); serve calls this at start."""
+        version = current_taxonomy_version or self.gateway.taxonomy.version
+        return mark_for_reclassification(self.store, version)
+
     def _build_payload(self, d: dict[str, Any]) -> dict[str, Any]:
         summary = (d.get("summary") or "").strip()
         chunks = chunk_segments(d.get("segments") or [])
@@ -172,7 +181,7 @@ class EnrichmentWorker:
             self.outbox.append(
                 rid,
                 chash,
-                mongo={"collection": vindex.COLLECTION, "id": rid},
+                mongo={"collection": vindex.COLLECTION, "doc_id": rid},
                 files=_file_paths(d.get("files")),
                 labels=payload["labels"],
                 taxonomy_version=payload.get("taxonomy_version"),

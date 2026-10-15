@@ -48,19 +48,6 @@ class ReadOnlyState:
         return getattr(self._inner, name)
 
 
-class NoAudioSource:
-    """A Pocket source whose audio URL is withheld (``--no-audio``): text lands, audio waits."""
-
-    def __init__(self, inner: Any) -> None:
-        self._inner = inner
-
-    def get_audio_url(self, recording_id: str, expires_in: int = 3600) -> None:
-        return None
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._inner, name)
-
-
 def cmd_sync(args: argparse.Namespace) -> int:
     since = parse_day(args.since)
     dry_run = not args.apply
@@ -69,8 +56,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
     state = rt.state()
     run_state = ReadOnlyState(state) if dry_run else state
     reconciler = rt.reconciler(state=run_state, dry_run=dry_run)
-    if not args.audio:
-        reconciler.source = NoAudioSource(reconciler.source)
+    reconciler.with_audio = bool(args.audio)
 
     result = reconciler.backfill(since) if since else reconciler.reconcile()
 

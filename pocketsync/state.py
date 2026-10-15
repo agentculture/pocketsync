@@ -27,6 +27,9 @@ DEDUPE_COLLECTION = "webhook_dedupe"
 STATE_ID = "state"
 DEFAULT_MAX_ERRORS = 50
 COUNTER_WEBHOOK_MISSED = "webhook_missed"
+#: A webhook inbox entry is retried this many times, then left ``failed`` (errors on record).
+INBOX_MAX_ATTEMPTS = 5
+INBOX_PENDING, INBOX_DONE, INBOX_FAILED = "pending", "done", "failed"
 
 
 def _now() -> str:
@@ -43,8 +46,23 @@ class StateStore(Protocol):
 
     def seen(self, dedupe_key: str) -> bool: ...
 
-    def mark_seen(self, dedupe_key: str) -> bool:
-        """Atomically record ``dedupe_key``; True if new, False if already seen."""
+    def mark_seen(self, dedupe_key: str, item: dict[str, Any] | None = None) -> bool:
+        """Atomically record ``dedupe_key``; True if new, False if already seen.
+
+        With ``item`` the key doubles as a durable inbox entry: it stays ``pending`` (and is
+        returned by :meth:`inbox_pending`) until :meth:`inbox_done`, so an acknowledged
+        webhook survives a crash or a failed handler.
+        """
+        ...
+
+    def inbox_pending(self) -> list[dict[str, Any]]:
+        """Pending inbox entries, oldest first: ``{"key", "item", "attempts"}``."""
+        ...
+
+    def inbox_done(self, dedupe_key: str) -> None: ...
+
+    def inbox_fail(self, dedupe_key: str, error: str) -> None:
+        """Count a failed attempt; after ``INBOX_MAX_ATTEMPTS`` the entry is ``failed``."""
         ...
 
     def record_run(self, started: str, finished: str, stats: dict[str, Any]) -> None: ...
@@ -79,6 +97,7 @@ class MemoryStateStore:
         self._errors: list[dict[str, Any]] = []
         self._counters: dict[str, int] = {}
         self._last_webhook_at: str | None = None
+        self._inbox: dict[str, dict[str, Any]] = {}  # insertion order = oldest first
 
     def get_watermark(self) -> str | None:
         return self._watermark
@@ -89,11 +108,32 @@ class MemoryStateStore:
     def seen(self, dedupe_key: str) -> bool:
         return dedupe_key in self._seen
 
-    def mark_seen(self, dedupe_key: str) -> bool:
+    def mark_seen(self, dedupe_key: str, item: dict[str, Any] | None = None) -> bool:
         if dedupe_key in self._seen:
             return False
         self._seen[dedupe_key] = _now()
+        if item is not None:
+            self._inbox[dedupe_key] = {"item": copy.deepcopy(item), "attempts": 0}
         return True
+
+    def inbox_pending(self) -> list[dict[str, Any]]:
+        return [
+            {"key": k, "item": copy.deepcopy(e["item"]), "attempts": e["attempts"]}
+            for k, e in self._inbox.items()
+            if e.get("status", INBOX_PENDING) == INBOX_PENDING
+        ]
+
+    def inbox_done(self, dedupe_key: str) -> None:
+        self._inbox.pop(dedupe_key, None)
+
+    def inbox_fail(self, dedupe_key: str, error: str) -> None:
+        e = self._inbox.get(dedupe_key)
+        if e is None:
+            return
+        e["attempts"] += 1
+        e["error"] = error
+        if e["attempts"] >= INBOX_MAX_ATTEMPTS:
+            e["status"] = INBOX_FAILED
 
     def record_run(self, started: str, finished: str, stats: dict[str, Any]) -> None:
         self._last_run = {"started": started, "finished": finished, "stats": dict(stats)}
@@ -152,14 +192,36 @@ class MongoStateStore:
     def seen(self, dedupe_key: str) -> bool:
         return self._dedupe.find_one({"_id": dedupe_key}, {"_id": 1}) is not None
 
-    def mark_seen(self, dedupe_key: str) -> bool:
+    def mark_seen(self, dedupe_key: str, item: dict[str, Any] | None = None) -> bool:
+        entry: dict[str, Any] = {"_id": dedupe_key, "seen_at": _now()}
+        if item is not None:
+            entry.update(status=INBOX_PENDING, item=item, attempts=0)
         try:
-            self._dedupe.insert_one({"_id": dedupe_key, "seen_at": _now()})
+            self._dedupe.insert_one(entry)
         except Exception as exc:  # pymongo stays an optional import
             if is_duplicate_key(exc):
                 return False
             raise
         return True
+
+    def inbox_pending(self) -> list[dict[str, Any]]:
+        cur = self._dedupe.find({"status": INBOX_PENDING}).sort("seen_at", 1)
+        return [{"key": d["_id"], "item": d["item"], "attempts": d.get("attempts", 0)} for d in cur]
+
+    def inbox_done(self, dedupe_key: str) -> None:
+        self._dedupe.update_one(
+            {"_id": dedupe_key},
+            {"$set": {"status": INBOX_DONE}, "$unset": {"item": ""}},
+        )
+
+    def inbox_fail(self, dedupe_key: str, error: str) -> None:
+        doc = self._dedupe.find_one_and_update(
+            {"_id": dedupe_key, "status": INBOX_PENDING},
+            {"$inc": {"attempts": 1}, "$set": {"error": error}},
+            return_document=True,
+        )
+        if doc is not None and doc.get("attempts", 0) >= INBOX_MAX_ATTEMPTS:
+            self._dedupe.update_one({"_id": dedupe_key}, {"$set": {"status": INBOX_FAILED}})
 
     def record_run(self, started: str, finished: str, stats: dict[str, Any]) -> None:
         self._set({"last_run": {"started": started, "finished": finished, "stats": dict(stats)}})
