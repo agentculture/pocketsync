@@ -149,3 +149,18 @@ def test_never_connects_times_out_pending_with_error(tmp_path):
     assert "not connected" in s.error
     assert not client.calls
     assert OutboxPublisher(tmp_path, FakeClient(), _factory).drain().published == 1
+
+
+def test_default_envelope_passes_events_cli_validation(tmp_path):
+    # Live backfill on 2026-10-15 found every publish refused: events-cli requires an
+    # absolute-URI source ("agent://..."). The fake client never validated envelopes.
+    pytest = __import__("pytest")
+    pytest.importorskip("events_cli")
+    from pocketsync.events import SOURCE, _default_envelope
+
+    box = Outbox(tmp_path)
+    _emit(box)
+    event = json.loads(box.path.read_text().splitlines()[0])
+    envelope, topic = _default_envelope(event)
+    assert envelope.source == SOURCE == "agent://pocketsync"
+    assert topic

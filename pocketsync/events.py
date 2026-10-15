@@ -66,7 +66,7 @@ from typing import Any, Callable, Mapping
 EVENT_TYPE = "pocketsync.recording.enriched"
 OUTBOX_NAME = "events.jsonl"
 PUBLISHED_SUFFIX = ".published"
-SOURCE = "pocketsync"
+SOURCE = "agent://pocketsync"  # events-cli requires an absolute URI
 QOS = 1
 
 
