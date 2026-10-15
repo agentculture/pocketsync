@@ -93,7 +93,27 @@ takes `--json`.
 
 Sync is incremental and idempotent. A re-run with no remote changes does
 nothing. A content hash detects when Pocket re-processes a transcript or
-summary, and that recording is re-synced. Audio is downloaded once per
+summary, and that recording is re-synced.
+
+### Catch-up
+
+Catch-up is built in, so nothing has to be run by hand after downtime or an
+upgrade. Every reconcile pass (`serve`, `watch` and `sync`) picks one of three
+modes:
+
+- **Incremental** (normal): lists from the last good pass's watermark minus a
+  2-day overlap. The watermark only advances after a clean pass, so downtime of
+  any length is covered by the first pass after restart.
+- **Initial**: there is no watermark yet (a fresh install). The pass backfills
+  everything since `POCKETSYNC_BACKFILL_SINCE`.
+- **Upgrade**: the stored `landing_schema` (in `sync_state`) is older than the
+  running code's. The pass re-lands every recording since
+  `POCKETSYNC_BACKFILL_SINCE` once, even if Pocket did not change it.
+
+A failed catch-up pass is retried by the next pass. Webhooks Pocket could not
+deliver while the receiver was down are covered by the same passes, and
+webhooks that were acknowledged but not handled are replayed from the durable
+inbox. Audio is downloaded once per
 recording; if it is missing (`--no-audio`, or a failed download), a later
 pass with audio fetches it.
 
@@ -232,9 +252,12 @@ A single document, `{_id: "state"}`, from `pocketsync/state.py`:
 | `errors[]` | Bounded (last 50) list of `{where, message, at}`, newest last. |
 | `counters` | Named integers, for example `webhook_missed` (deliveries the reconciler found that no webhook announced). |
 | `last_webhook_at` | Time of the last accepted webhook. |
+| `landing_schema` | Landing-schema version of the pocketsync that last completed a pass; an older value triggers the upgrade catch-up. |
 
 `webhook_dedupe` makes webhook handling idempotent: inserting an existing key
-fails on `_id`, which reports the delivery as a duplicate.
+fails on `_id`, which reports the delivery as a duplicate. Each entry is also a
+durable inbox record (`status` `pending`, `done` or `failed`, plus `attempts`)
+until the event is handled.
 
 ### Local files (optional sink)
 
@@ -335,6 +358,7 @@ Non-secret settings:
 | `POCKETSYNC_RECONCILE_INTERVAL` | `300` | Reconciler interval in seconds. |
 | `POCKETSYNC_ENRICHMENT_CONCURRENCY` | `2` | Parallel enrichment jobs. |
 | `POCKETSYNC_TAXONOMY_PATH` | built-in | Taxonomy TOML; default is `pocketsync/enrich/default_taxonomy.toml` (labels: meeting, call, idea, todo-reminder, personal-note, lecture-learning, other). |
+| `POCKETSYNC_BACKFILL_SINCE` | `2024-01-01` | Earliest day the automatic catch-up backfills from; `off` disables it (see [Catch-up](#catch-up)). |
 | `POCKETSYNC_CONFIG` | unset | Path to the optional TOML config. |
 | `POCKETSYNC_DATA_DIR` | `$HOME/.local/share/pocketsync/mongo` | Host data root for the Mongo stack (compose only). |
 

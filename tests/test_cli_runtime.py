@@ -144,3 +144,12 @@ def test_get_uses_current_build(monkeypatch, tmp_path):
     sentinel = _runtime.Runtime(settings(tmp_path))
     monkeypatch.setattr(_runtime, "build", lambda: sentinel)
     assert _runtime.get() is sentinel
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [(None, config.DEFAULT_BACKFILL_SINCE), ("2025-06-01", "2025-06-01"), ("off", None)],
+)
+def test_catch_up_since_comes_from_settings(tmp_path, value, expected):
+    env = {} if value is None else {"POCKETSYNC_BACKFILL_SINCE": value}
+    assert _runtime.Runtime(settings(tmp_path, **env)).catch_up_since() == expected

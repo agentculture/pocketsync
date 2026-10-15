@@ -28,7 +28,14 @@ from pocketsync.cli._errors import EXIT_ENV_ERROR, CliError
 from pocketsync.cli._output import emit_error, emit_result
 
 _STATE_WRITES = frozenset(
-    {"set_watermark", "mark_seen", "record_run", "increment", "set_last_webhook_at"}
+    {
+        "set_watermark",
+        "set_landing_schema",
+        "mark_seen",
+        "record_run",
+        "increment",
+        "set_last_webhook_at",
+    }
 )
 
 

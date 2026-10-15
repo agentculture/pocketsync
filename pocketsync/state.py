@@ -44,6 +44,12 @@ class StateStore(Protocol):
 
     def set_watermark(self, ts: str) -> None: ...
 
+    def get_landing_schema(self) -> int | None:
+        """The ``LANDING_SCHEMA`` of the pocketsync that last completed a pass (None: never)."""
+        ...
+
+    def set_landing_schema(self, version: int) -> None: ...
+
     def seen(self, dedupe_key: str) -> bool: ...
 
     def mark_seen(self, dedupe_key: str, item: dict[str, Any] | None = None) -> bool:
@@ -98,12 +104,19 @@ class MemoryStateStore:
         self._counters: dict[str, int] = {}
         self._last_webhook_at: str | None = None
         self._inbox: dict[str, dict[str, Any]] = {}  # insertion order = oldest first
+        self._landing_schema: int | None = None
 
     def get_watermark(self) -> str | None:
         return self._watermark
 
     def set_watermark(self, ts: str) -> None:
         self._watermark = ts
+
+    def get_landing_schema(self) -> int | None:
+        return self._landing_schema
+
+    def set_landing_schema(self, version: int) -> None:
+        self._landing_schema = int(version)
 
     def seen(self, dedupe_key: str) -> bool:
         return dedupe_key in self._seen
@@ -188,6 +201,13 @@ class MongoStateStore:
 
     def set_watermark(self, ts: str) -> None:
         self._set({"watermark": ts})
+
+    def get_landing_schema(self) -> int | None:
+        value = self._doc().get("landing_schema")
+        return None if value is None else int(value)
+
+    def set_landing_schema(self, version: int) -> None:
+        self._set({"landing_schema": int(version)})
 
     def seen(self, dedupe_key: str) -> bool:
         return self._dedupe.find_one({"_id": dedupe_key}, {"_id": 1}) is not None

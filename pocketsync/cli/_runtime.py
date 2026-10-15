@@ -126,8 +126,14 @@ class Runtime:
             store_sink=self.store_sink(),
             state=state if state is not None else self.state(),
             dry_run=dry_run,
+            initial_since=self.catch_up_since(),
             **self.reconciler_options(),
         )
+
+    def catch_up_since(self) -> str | None:
+        """The automatic catch-up start day, or None when ``backfill_since`` is ``off``."""
+        value = (self.settings.backfill_since or "").strip()
+        return None if value.lower() in ("", "off", "none") else value
 
     # -- enrichment / events -------------------------------------------------------------
 

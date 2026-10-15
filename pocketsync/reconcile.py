@@ -40,6 +40,11 @@ from pocketsync.sync import land
 
 DEFAULT_INTERVAL = 300.0
 DEFAULT_OVERLAP_DAYS = 2
+#: Version of what a landing writes (document shape, file layout, content-hash definition).
+#: Bump it whenever an upgrade changes that, so the next pass re-lands every recording once.
+#: 1: first release (0.11.0, hash excludes ``raw``).
+LANDING_SCHEMA = 1
+CATCH_UP_INITIAL, CATCH_UP_UPGRADE = "initial", "upgrade"
 DEFAULT_PAGE_DELAY = 0.5
 DEFAULT_GRACE = 600.0
 DEFAULT_BACKOFF_BASE = 2.0
@@ -107,12 +112,13 @@ class ReconcileResult:
     errors: int = 0
     pages: int = 0
     ok: bool = True
+    catch_up: str | None = None  # "initial" | "upgrade" when the pass was a catch-up
     planned: list[str] = field(default_factory=list)
 
     def stats(self) -> dict[str, Any]:
         return {
             k: getattr(self, k)
-            for k in ("listed", "landed", "skipped", "missed", "errors", "pages", "ok")
+            for k in ("listed", "landed", "skipped", "missed", "errors", "pages", "ok", "catch_up")
         }
 
 
@@ -135,6 +141,7 @@ class Reconciler:
         max_retries: int = DEFAULT_MAX_RETRIES,
         dry_run: bool = False,
         with_audio: bool = True,
+        initial_since: str | date | datetime | None = None,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], datetime] = _utcnow,
     ) -> None:
@@ -151,24 +158,58 @@ class Reconciler:
         self.max_retries = max_retries
         self.dry_run = dry_run
         self.with_audio = with_audio
+        self.initial_since = initial_since
         self._sleep = sleep
         self._clock = clock
 
     # -- public API -------------------------------------------------------------------
 
     def reconcile(self, since: str | date | datetime | None = None) -> ReconcileResult:
-        """One incremental pass from ``(since or watermark) - overlap`` to today (UTC)."""
+        """One pass to today (UTC); catches up automatically when ``initial_since`` is set.
+
+        * Incremental (the normal case): from ``(since or watermark) - overlap``. Downtime of
+          any length is covered, because the watermark only advances after a clean pass.
+        * ``initial`` catch-up: no watermark yet (a fresh install). Backfills from
+          ``initial_since``.
+        * ``upgrade`` catch-up: the stored landing schema is older than
+          :data:`LANDING_SCHEMA`. Re-lands every recording from ``initial_since``, even if
+          unchanged in Pocket.
+
+        A failed pass advances neither the watermark nor the schema, so a catch-up is retried
+        by the next pass.
+        """
         started = self._clock()
-        base = (
-            _parse_since(since)
-            if since is not None
-            else (_parse_ts(self.state.get_watermark()) or started)
+        catch_up = None if since is not None else self._catch_up()
+        if catch_up is not None:
+            start_day = _parse_since(self.initial_since).date()
+        else:
+            base = (
+                _parse_since(since)
+                if since is not None
+                else (_parse_ts(self.state.get_watermark()) or started)
+            )
+            start_day = (base - timedelta(days=self.overlap_days)).date()
+        result = self._pass(
+            start_day,
+            started,
+            count_missed=catch_up is None,
+            where="reconcile" if catch_up is None else f"catch-up:{catch_up}",
+            force=catch_up == CATCH_UP_UPGRADE,
         )
-        start_day = (base - timedelta(days=self.overlap_days)).date()
-        result = self._pass(start_day, started, count_missed=True, where="reconcile")
+        result.catch_up = catch_up
         if result.ok and not self.dry_run:
             self.state.set_watermark(_iso(started))
+            self.state.set_landing_schema(LANDING_SCHEMA)
         return result
+
+    def _catch_up(self) -> str | None:
+        if self.initial_since is None:
+            return None
+        if self.state.get_watermark() is None:
+            return CATCH_UP_INITIAL
+        if self.state.get_landing_schema() != LANDING_SCHEMA:
+            return CATCH_UP_UPGRADE
+        return None
 
     def backfill(self, since: str | date | datetime) -> ReconcileResult:
         """Land everything from ``since`` (exact day, no overlap) to today. Watermark untouched."""
@@ -192,7 +233,13 @@ class Reconciler:
     # -- internals --------------------------------------------------------------------
 
     def _pass(
-        self, start_day: date, started: datetime, *, count_missed: bool, where: str
+        self,
+        start_day: date,
+        started: datetime,
+        *,
+        count_missed: bool,
+        where: str,
+        force: bool = False,
     ) -> ReconcileResult:
         result = ReconcileResult()
         start_s, end_s = start_day.isoformat(), started.astimezone(timezone.utc).date().isoformat()
@@ -206,7 +253,9 @@ class Reconciler:
                 )
                 result.pages += 1
                 for item in listing.recordings:
-                    self._handle(item, started, result, count_missed and not self.dry_run, where)
+                    self._handle(
+                        item, started, result, count_missed and not self.dry_run, where, force
+                    )
                 if not listing.has_more:
                     break
                 page += 1
@@ -221,11 +270,20 @@ class Reconciler:
             self.state.record_run(_iso(started), _iso(self._clock()), result.stats())
         return result
 
-    def _handle(self, item, now: datetime, result: ReconcileResult, count: bool, where: str):
+    def _handle(
+        self,
+        item,
+        now: datetime,
+        result: ReconcileResult,
+        count: bool,
+        where: str,
+        force: bool = False,
+    ):
         result.listed += 1
         exists, stored_updated = self._stored(item.id)
         if (
-            exists
+            not force
+            and exists
             and _same_instant(stored_updated, item.updated_at)
             and not self._audio_wanted(item.id)
         ):

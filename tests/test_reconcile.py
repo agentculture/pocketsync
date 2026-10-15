@@ -263,3 +263,51 @@ def test_bad_since_is_user_error(tmp_path):
     env = Env(tmp_path, [])
     with pytest.raises(CliError):
         env.rc.backfill("not-a-date")
+
+
+# -- automatic catch-up (d6): fresh install, downtime, upgrade -----------------------------
+
+
+def test_fresh_install_backfills_from_the_initial_date(tmp_path):
+    from pocketsync.reconcile import LANDING_SCHEMA
+
+    env = Env(tmp_path, [rec(1, day="2025-03-01"), rec(2)], initial_since="2025-01-01")
+    result = env.rc.reconcile()
+    assert sorted(d["_id"] for d in env.docs()) == ["r0001", "r0002"]
+    assert result.ok and result.catch_up == "initial"
+    assert result.missed == 0  # a backfill is not a missed webhook
+    assert env.state.get_watermark() == "2026-10-14T12:00:00Z"
+    assert env.state.get_landing_schema() == LANDING_SCHEMA
+    second = env.rc.reconcile()  # now incremental
+    assert second.catch_up is None and second.landed == 0
+
+
+def test_downtime_longer_than_the_overlap_is_caught_up(tmp_path):
+    env = Env(tmp_path, [rec(1, day="2026-09-20")], initial_since="2025-01-01")
+    env.rc.reconcile()  # baseline: fresh-install backfill
+    env.src.seed([rec(2, day="2026-09-25")])  # landed in Pocket while we were down
+    env.state.set_watermark("2026-09-24T00:00:00Z")  # last good pass, 20 days ago
+    result = env.rc.reconcile()
+    assert "r0002" in {d["_id"] for d in env.docs()}
+    assert result.catch_up is None and result.ok
+
+
+def test_upgrade_resyncs_every_recording_once(tmp_path):
+    env = Env(tmp_path, [rec(1, day="2025-06-01"), rec(2)], initial_since="2025-01-01")
+    env.rc.reconcile()
+    puts_before = env.mongo.puts
+    env.state.set_landing_schema(0)  # written by an older pocketsync
+    result = env.rc.reconcile()
+    assert result.catch_up == "upgrade" and result.landed == 2 and result.skipped == 0
+    assert env.mongo.puts == puts_before + 2
+    assert env.rc.reconcile().landed == 0  # schema recorded; back to incremental
+
+
+def test_failed_catch_up_is_retried_by_the_next_pass(tmp_path):
+    env = Env(tmp_path, [rec(1, day="2025-06-01")], initial_since="2025-01-01")
+    env.src.set_rate_limit(100)  # every call is throttled past the retry budget
+    result = env.rc.reconcile()
+    assert not result.ok
+    assert env.state.get_watermark() is None and env.state.get_landing_schema() is None
+    env.src.set_rate_limit(0)
+    assert env.rc.reconcile().catch_up == "initial"

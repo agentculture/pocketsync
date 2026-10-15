@@ -121,6 +121,7 @@ class CountingSink:
 
 _STATE_WRITES = (
     "set_watermark",
+    "set_landing_schema",
     "mark_seen",
     "record_run",
     "record_error",

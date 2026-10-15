@@ -17,6 +17,9 @@ from pocketsync.cli._errors import EXIT_ENV_ERROR, CliError
 
 DEFAULT_GATEWAY_URL = "http://localhost:8001/v1"
 DEFAULT_FILES_ROOT = "~/.local/share/pocketsync/files"
+#: Earliest day the automatic catch-up backfills from (before Pocket shipped). "off" disables
+#: the automatic fresh-install and upgrade catch-up (plain incremental passes only).
+DEFAULT_BACKFILL_SINCE = "2024-01-01"
 
 # setting name -> environment variable: always POCKETSYNC_<NAME>
 _SETTING_NAMES = (
@@ -30,6 +33,7 @@ _SETTING_NAMES = (
     "reconcile_interval",
     "enrichment_concurrency",
     "taxonomy_path",
+    "backfill_since",
 )
 ENV_VARS = {name: f"POCKETSYNC_{name.upper()}" for name in _SETTING_NAMES}
 CONFIG_PATH_ENV = "POCKETSYNC_CONFIG"
@@ -51,6 +55,7 @@ class Settings:
     reconcile_interval: int = 300
     enrichment_concurrency: int = 2
     taxonomy_path: str | None = None
+    backfill_since: str = DEFAULT_BACKFILL_SINCE
 
     def __str__(self) -> str:
         return repr(self)

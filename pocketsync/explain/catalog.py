@@ -199,6 +199,10 @@ writes `--apply` would make.
 - Without `--since`: reconcile from `watermark - 2 days` to today; the
   watermark advances only when the whole pass succeeded. New recordings older
   than 10 minutes that no webhook delivered bump `webhook_missed`.
+- Automatic catch-up (also in `serve` and `watch`): with no watermark yet the
+  pass backfills from `POCKETSYNC_BACKFILL_SINCE` (default 2024-01-01); after
+  an upgrade that bumps the landing schema it re-lands every recording once.
+  `POCKETSYNC_BACKFILL_SINCE=off` disables both.
 - With `--since DATE`: backfill from exactly that day; watermark untouched.
 - `--with-audio` (default) / `--no-audio`: download audio or text only.
 - After `--apply`, unless `--no-enrich`: one enrichment pass over pending

@@ -2,7 +2,7 @@
   "plan_slug": "pocket-to-mongodb-near-realtime",
   "schema_version": 2,
   "created": "2026-10-14T20:34:54Z",
-  "updated": "2026-10-15T05:14:46Z",
+  "updated": "2026-10-15T05:33:09Z",
   "deviations": [
     {
       "id": "d1",
@@ -76,6 +76,19 @@
       "status": "approved",
       "classification": "acceptable",
       "seq": 5
+    },
+    {
+      "id": "d6",
+      "what": "Automatic catch-up as code: with no watermark the reconciler backfills from a configurable initial date (POCKETSYNC_BACKFILL_SINCE) instead of only the last 2 days; when the stored landing-schema version is older than the code's, it re-lands every recording once (upgrade resync); downtime of any length is covered by the watermark-minus-overlap window",
+      "task_ref": "t13",
+      "reason": "Operator, 2026-10-15: 'We need retroactive work as code, since it's going to be needed after downtimes/upgrades' - existing content must be pulled on a fresh install and after upgrades without a manual sync --since",
+      "affects": [
+        "t15"
+      ],
+      "origin": "user",
+      "status": "approved",
+      "classification": "acceptable",
+      "seq": 61
     }
   ],
   "evidence": [
