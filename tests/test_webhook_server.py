@@ -57,10 +57,9 @@ def post(srv, body, headers=None):
 
 def test_binds_loopback_only():
     for host in ("0.0.0.0", "192.168.1.5", ""):
+        state, q = MemoryStateStore(), queue.Queue()
         with pytest.raises(ValueError):
-            WebhookServer(
-                host=host, port=0, secret=SECRET, state=MemoryStateStore(), queue=queue.Queue()
-            )
+            WebhookServer(host=host, port=0, secret=SECRET, state=state, queue=q)
 
 
 def test_verified_event_enqueued_and_marked(server):

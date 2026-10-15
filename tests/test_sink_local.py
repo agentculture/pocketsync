@@ -157,8 +157,9 @@ def test_layout_and_meta_last(tmp_path, monkeypatch):
 
 def test_failed_audio_writes_no_meta(tmp_path):
     sink = LocalSink(tmp_path, opener=lambda u: FakeResp(PAYLOAD, fail_after=100))
+    r = make_rec()
     with pytest.raises(AudioDownloadError) as ei:
-        sink.put_recording(make_rec(), audio_url="https://x.example/a")
+        sink.put_recording(r, audio_url="https://x.example/a")
     assert isinstance(ei.value.__cause__, ConnectionResetError)
     d = tmp_path / "2026" / "03" / "rec1"
     assert not (d / "meta.json").exists()
@@ -212,5 +213,7 @@ def test_tombstone_and_merge_keep_files(tmp_path):
 
 
 def test_unsafe_id_rejected(tmp_path):
+    sink = LocalSink(tmp_path)
+    evil = make_rec("../evil")
     with pytest.raises(CliError):
-        LocalSink(tmp_path).put_recording(make_rec("../evil"))
+        sink.put_recording(evil)

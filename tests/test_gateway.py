@@ -71,8 +71,8 @@ def test_embed_request_shape(client):
     assert headers["Authorization"] == "Bearer k"
 
 
-def test_embed_wrong_dims(client):
-    Fake.dims = 128
+def test_embed_wrong_dims(client, monkeypatch):
+    monkeypatch.setattr(Fake, "dims", 128)
     with pytest.raises(CliError):
         client.embed(["a"])
 
@@ -91,8 +91,8 @@ def test_classify(client):
 
 
 @pytest.mark.parametrize("status", [503, 404, 429, 500, 502, 504])
-def test_unavailable_is_retryable(client, status):
-    Fake.status = status
+def test_unavailable_is_retryable(client, status, monkeypatch):
+    monkeypatch.setattr(Fake, "status", status)
     with pytest.raises(EnrichmentUnavailable) as ei:
         client.embed(["a"])
     assert ei.value.retryable
@@ -100,8 +100,9 @@ def test_unavailable_is_retryable(client, status):
 
 
 def test_unreachable_is_retryable():
+    unreachable = GatewayClient("http://127.0.0.1:1/v1", timeout=1)
     with pytest.raises(EnrichmentUnavailable):
-        GatewayClient("http://127.0.0.1:1/v1", timeout=1).embed(["a"])
+        unreachable.embed(["a"])
 
 
 def test_taxonomies_differ():
@@ -126,8 +127,8 @@ def test_load_taxonomy_from_path(tmp_path):
 
 
 @pytest.mark.parametrize("status", [400, 401, 422])
-def test_client_errors_are_not_retryable(client, status):
-    Fake.status = status
+def test_client_errors_are_not_retryable(client, status, monkeypatch):
+    monkeypatch.setattr(Fake, "status", status)
     with pytest.raises(CliError) as ei:
         client.embed(["a"])
     assert not isinstance(ei.value, EnrichmentUnavailable)

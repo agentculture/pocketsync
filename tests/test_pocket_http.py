@@ -95,26 +95,30 @@ def test_list_recordings_page():
 
 
 def test_limit_over_100_rejected():
+    src = _src()
     with pytest.raises(CliError):
-        _src().list_recordings(limit=101)
+        src.list_recordings(limit=101)
 
 
 def test_429_with_and_without_retry_after():
     with mock.patch(TARGET, side_effect=_http_error(429, headers={"Retry-After": "12"})):
+        src = _src()
         with pytest.raises(RateLimited) as ei:
-            _src().list_recordings()
+            src.list_recordings()
     assert ei.value.retry_after == 12.0
     with mock.patch(TARGET, side_effect=_http_error(429)):
+        src = _src()
         with pytest.raises(RateLimited) as ei:
-            _src().list_recordings()
+            src.list_recordings()
     assert ei.value.retry_after is None
 
 
 def test_401_is_auth_clierror_without_key_leak():
     body = json.dumps({"success": False, "error": "invalid key"}).encode()
     with mock.patch(TARGET, side_effect=_http_error(401, body)):
+        src = _src()
         with pytest.raises(CliError) as ei:
-            _src().list_recordings()
+            src.list_recordings()
     assert not isinstance(ei.value, RateLimited)
     assert "API key" in ei.value.message
     assert "pk_test" not in repr(ei.value.to_dict())
@@ -123,12 +127,14 @@ def test_401_is_auth_clierror_without_key_leak():
 
 def test_network_error_and_5xx():
     with mock.patch(TARGET, side_effect=urllib.error.URLError("boom")):
+        src = _src()
         with pytest.raises(CliError) as ei:
-            _src().list_recordings()
+            src.list_recordings()
     assert ei.value.code == 2
     with mock.patch(TARGET, side_effect=_http_error(503)):
+        src = _src()
         with pytest.raises(CliError):
-            _src().get_recording("x")
+            src.get_recording("x")
 
 
 def test_audio_url_string_and_dict():
@@ -137,11 +143,13 @@ def test_audio_url_string_and_dict():
             assert _src().get_audio_url("rec1", 120) == "https://a.example/x"
         url = m.call_args[0][0].full_url
         assert "/recordings/rec1/audio-url?expires_in=120" in url
+    src = _src()
     with pytest.raises(CliError):
-        _src().get_audio_url("rec1", 10)
+        src.get_audio_url("rec1", 10)
     with mock.patch(TARGET, return_value=_ok({"success": True, "data": None})):
+        src = _src()
         with pytest.raises(CliError):
-            _src().get_audio_url("rec1")
+            src.get_audio_url("rec1")
 
 
 def test_map_defensive_alternate_keys():

@@ -80,8 +80,9 @@ def test_require_ok_returns_self():
 
 
 def test_require_unknown_name():
+    s = load(env={})
     with pytest.raises(ValueError):
-        load(env={}).require("nope")
+        s.require("nope")
 
 
 def test_secrets_never_in_repr_or_str():

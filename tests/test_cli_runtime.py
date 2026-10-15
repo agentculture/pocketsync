@@ -80,8 +80,9 @@ def test_mongo_pieces_share_one_database(tmp_path, monkeypatch):
 
 
 def test_database_requires_uri(tmp_path):
+    rt = _runtime.Runtime(settings(tmp_path))
     with pytest.raises(CliError) as exc:
-        _runtime.Runtime(settings(tmp_path)).database()
+        rt.database()
     assert "POCKETSYNC_MONGO_URI" in exc.value.message
 
 
