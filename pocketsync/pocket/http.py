@@ -37,55 +37,65 @@ def _as_str_list(value: Any) -> list[str]:
     return out
 
 
-def _find_summary(summ: Any) -> str:
-    """Pull summary markdown out of ``summarizations`` (shape not fully documented)."""
-    if isinstance(summ, str):
-        return summ
-    if isinstance(summ, list):
-        for item in summ:
-            found = _find_summary(item)
-            if found:
-                return found
-        return ""
-    if not isinstance(summ, dict):
-        return ""
+def _first(items: Any, finder: Callable[[Any], Any]) -> Any:
+    """The first truthy ``finder(item)`` over ``items``, else None."""
+    for item in items:
+        found = finder(item)
+        if found:
+            return found
+    return None
+
+
+def _nested(d: dict[str, Any]) -> list[Any]:
+    """The dict and list values of ``d``, in order (the places a deeper search looks)."""
+    return [v for v in d.values() if isinstance(v, (dict, list))]
+
+
+def _summary_here(summ: dict[str, Any]) -> str | None:
+    """Summary markdown at a known path in ``summ``; None means "search deeper".
+
+    A plain ``summary`` string, even an empty one, ends the search.
+    """
     for path in (("v2", "summary", "markdown"), ("summary", "markdown"), ("markdown",)):
         cur: Any = summ
         for key in path:
             cur = cur.get(key) if isinstance(cur, dict) else None
         if isinstance(cur, str) and cur:
             return cur
-    if isinstance(summ.get("summary"), str):
-        return summ["summary"]
-    for value in summ.values():
-        if isinstance(value, (dict, list)):
-            found = _find_summary(value)
-            if found:
-                return found
-    return ""
+    plain = summ.get("summary")
+    return plain if isinstance(plain, str) else None
 
 
-def _find_action_items(summ: Any) -> list[Any]:
+def _find_summary(summ: Any) -> str:
+    """Pull summary markdown out of ``summarizations`` (shape not fully documented)."""
+    if isinstance(summ, str):
+        return summ
     if isinstance(summ, list):
-        for item in summ:
-            found = _find_action_items(item)
-            if found:
-                return found
-        return []
+        return _first(summ, _find_summary) or ""
     if not isinstance(summ, dict):
-        return []
+        return ""
+    here = _summary_here(summ)
+    if here is not None:
+        return here
+    return _first(_nested(summ), _find_summary) or ""
+
+
+def _action_items_here(summ: dict[str, Any]) -> list[Any] | None:
     for key in ("actionItems", "action_items"):
         val = summ.get(key)
         if isinstance(val, dict):  # live API: v2.actionItems.actions (verified 2026-10-14)
             val = val.get("actions") or val.get("items")
         if isinstance(val, list) and val:
             return val
-    for value in summ.values():
-        if isinstance(value, (dict, list)):
-            found = _find_action_items(value)
-            if found:
-                return found
-    return []
+    return None
+
+
+def _find_action_items(summ: Any) -> list[Any]:
+    if isinstance(summ, list):
+        return _first(summ, _find_action_items) or []
+    if not isinstance(summ, dict):
+        return []
+    return _action_items_here(summ) or _first(_nested(summ), _find_action_items) or []
 
 
 def _map_action_item(item: Any) -> ActionItem:

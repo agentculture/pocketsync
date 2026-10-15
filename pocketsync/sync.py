@@ -16,8 +16,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from pocketsync.cli._errors import CliError
+from pocketsync.model import Recording
 from pocketsync.pocket.base import PocketSource
-from pocketsync.sinks.base import AudioDownloadError, Sink
+from pocketsync.sinks.base import AudioDownloadError, PutResult, Sink
 
 AUDIO_URL_TTL = 3600
 
@@ -64,18 +65,10 @@ def land(
     audio_url: str | None = None
     audio_error: str | None = None
     if with_audio and not dry_run:
-        fstate = files_sink.get_state(rec.id)
-        if not (fstate and fstate.has_audio):
-            try:
-                audio_url = source.get_audio_url(recording_id, expires_in=AUDIO_URL_TTL)
-            except CliError as exc:
-                audio_error = exc.message
+        audio_url, audio_error = _audio_url_if_missing(source, files_sink, recording_id, rec.id)
 
-    try:
-        f = files_sink.put_recording(rec, dry_run=dry_run, audio_url=audio_url)
-    except AudioDownloadError as exc:
-        audio_error = exc.message
-        f = files_sink.put_recording(rec, dry_run=dry_run, audio_url=None)
+    f, download_error = _put_files(files_sink, rec, dry_run, audio_url)
+    audio_error = download_error or audio_error
     # Hand the store the file refs. When nothing changed locally the stored refs are already
     # right (and an unchanged local result omits the meta ref), so only pass them if the store
     # has never seen this recording.
@@ -97,6 +90,29 @@ def land(
         if s.changed:
             result.planned.append(f"store: upsert {rec.id} (hash {s.content_hash[:12]})")
     return result
+
+
+def _audio_url_if_missing(
+    source: PocketSource, files_sink: Sink, recording_id: str, rec_id: str
+) -> tuple[str | None, str | None]:
+    """A fresh signed audio URL when the files sink has no audio yet: ``(url, error)``."""
+    fstate = files_sink.get_state(rec_id)
+    if fstate and fstate.has_audio:
+        return None, None
+    try:
+        return source.get_audio_url(recording_id, expires_in=AUDIO_URL_TTL), None
+    except CliError as exc:
+        return None, exc.message
+
+
+def _put_files(
+    files_sink: Sink, rec: Recording, dry_run: bool, audio_url: str | None
+) -> tuple[PutResult, str | None]:
+    """Write to the files sink; a failed audio download lands text only: ``(result, error)``."""
+    try:
+        return files_sink.put_recording(rec, dry_run=dry_run, audio_url=audio_url), None
+    except AudioDownloadError as exc:
+        return files_sink.put_recording(rec, dry_run=dry_run, audio_url=None), exc.message
 
 
 def _apply(sink: Sink, recording_id: str, action) -> str:
