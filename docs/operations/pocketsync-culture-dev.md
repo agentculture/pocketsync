@@ -24,7 +24,7 @@ Pocket ──POST──▶ pocketsync.culture.dev/hooks/pocket   (Cloudflare edg
   `uv tool install 'pocketsync[mongo,events]'` (or from a checkout).
 - `pocketsync-mongo` running per `docs/operations/pocketsync-mongo.md`.
 - `grant` and `cloudflared` installed (`$HOME/.local/bin/grant`,
-  `/usr/local/bin/cloudflared`).
+  `$HOME/.local/bin/cloudflared`).
 - `cultureflare` with a Cloudflare API token that has Tunnel Edit plus Access
   Apps and Policies Edit (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` in
   its `.env`, never in this repo).
