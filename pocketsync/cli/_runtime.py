@@ -168,7 +168,7 @@ class Runtime:
                 body = resp.read().decode("utf-8", "replace")
         except urllib.error.HTTPError as exc:
             raise CliError(EXIT_ENV_ERROR, f"gateway returned HTTP {exc.code}", "") from exc
-        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
+        except OSError as exc:  # URLError, TimeoutError and ConnectionError are OSErrors
             reason = getattr(exc, "reason", exc)
             raise CliError(EXIT_ENV_ERROR, f"gateway unreachable: {reason}", "") from exc
         try:

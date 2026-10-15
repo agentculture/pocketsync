@@ -39,8 +39,8 @@ def install_signal_handlers(stop: threading.Event) -> Callable[[], None]:
 
 def wait(stop: threading.Event) -> None:
     """Block until ``stop`` is set, in short slices so signal handlers run promptly."""
-    while not stop.wait(_WAIT_SLICE):
-        pass
+    while not stop.is_set():
+        stop.wait(_WAIT_SLICE)
 
 
 def run_until_signal(

@@ -94,7 +94,7 @@ def parse_payload(raw_body: bytes) -> dict[str, Any]:
     """Decode the JSON object payload. Call only after :func:`verify` succeeded."""
     try:
         data = json.loads(raw_body)
-    except (ValueError, UnicodeDecodeError) as exc:
+    except ValueError as exc:  # includes UnicodeDecodeError
         raise MalformedEvent("body is not valid JSON") from exc
     if not isinstance(data, dict) or not isinstance(data.get("event"), str):
         raise MalformedEvent("payload is not an object with an 'event' string")

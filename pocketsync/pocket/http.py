@@ -22,6 +22,7 @@ from pocketsync.pocket.base import MAX_PAGE_LIMIT, RateLimited, RecordingPage
 BASE_URL = "https://public.heypocketai.com/api/v1/public"
 DEFAULT_TIMEOUT = 30.0
 MAX_THROTTLE_SECONDS = 120.0
+_RETRY_LATER = "Retry later."
 
 
 def _as_str_list(value: Any) -> list[str]:
@@ -232,7 +233,7 @@ class PocketHttpSource:
             if exc.code == 429:
                 self._note_throttled(exc.headers)
             self._raise_http(exc, self._clock())
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        except OSError as exc:  # URLError and TimeoutError are OSErrors
             raise CliError(
                 EXIT_ENV_ERROR, f"Pocket request failed: {exc}", "Check connectivity; retry."
             ) from exc
@@ -265,7 +266,7 @@ class PocketHttpSource:
             raise CliError(
                 EXIT_USER_ERROR, f"Pocket resource not found{suffix}", "Check the recording id."
             ) from exc
-        raise CliError(EXIT_ENV_ERROR, f"Pocket HTTP {exc.code}{suffix}", "Retry later.") from exc
+        raise CliError(EXIT_ENV_ERROR, f"Pocket HTTP {exc.code}{suffix}", _RETRY_LATER) from exc
 
     @staticmethod
     def _unwrap(payload: Any) -> Any:
@@ -275,7 +276,7 @@ class PocketHttpSource:
             raise CliError(
                 EXIT_ENV_ERROR,
                 f"Pocket error: {payload.get('error') or payload.get('error_code')}",
-                "Retry later.",
+                _RETRY_LATER,
             )
         return payload
 
@@ -322,7 +323,7 @@ class PocketHttpSource:
         )
         data = payload.get("data")
         if not isinstance(data, dict) or "id" not in data:
-            raise CliError(EXIT_ENV_ERROR, "Pocket returned no recording", "Retry later.")
+            raise CliError(EXIT_ENV_ERROR, "Pocket returned no recording", _RETRY_LATER)
         return _map_recording(data)
 
     def get_audio_url(self, recording_id: str, expires_in: int = 3600) -> str:
@@ -341,5 +342,5 @@ class PocketHttpSource:
                 or data.get("download_url")
             )
         if not isinstance(data, str) or not data:
-            raise CliError(EXIT_ENV_ERROR, "Pocket returned no audio URL", "Retry later.")
+            raise CliError(EXIT_ENV_ERROR, "Pocket returned no audio URL", _RETRY_LATER)
         return data

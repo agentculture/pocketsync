@@ -46,11 +46,11 @@ def snapshot(rt: Any) -> dict[str, Any]:
     }
 
 
-def cmd_status(args: argparse.Namespace) -> int:
+def cmd_status(args: argparse.Namespace) -> None:
     snap = snapshot(_runtime.get())
     if json_mode(args):
         emit_result(snap, json_mode=True)
-        return 0
+        return
     run = snap["last_run"] or {}
     stats = run.get("stats") or {}
     run_text = (
@@ -71,7 +71,6 @@ def cmd_status(args: argparse.Namespace) -> int:
     for e in snap["last_errors"]:
         text += f"\n  {e.get('at', '-')} [{e.get('where', '-')}] {e.get('message', '')}"
     emit_result(text, json_mode=False)
-    return 0
 
 
 def register(sub: argparse._SubParsersAction) -> None:
