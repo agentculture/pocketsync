@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-10-15
+
+### Added
+
+- Pocket source adapter for the official public API (pk_ key), with live-verified response mapping and X-Ratelimit throttling
+- Signed webhook receiver for pocketsync.culture.dev/hooks/pocket (HMAC verify, 5 MB limit, fast ack, dedupe)
+- Mongo sink for a dedicated pocketsync-mongo (mongodb-atlas-local): idempotent upserts, CAS enrichment, tombstones, sync state
+- Local file sink with atomic audio download; landing engine, reconciler and backfill
+- Enrichment worker: transcript chunking, gemma2-embed vectors and lobes-decider type labels; vector-search index manager
+- Handoff events via an events.jsonl outbox and events-cli QoS 1 publish
+- CLI verbs auth, list, sync, watch, serve, status, reembed and new doctor checks
+- Deploy: atlas-local compose, systemd serve unit, cloudflared connector and runbooks; opt-in atlas-local integration tests
+- Spec, plan, split and delivery summary for pocket-to-mongodb-near-realtime
+
+### Changed
+
+- API premise in the harness prompt files and README: official API + webhooks replace the reverse-engineered Firebase path
+- Optional extras pocketsync[mongo] and pocketsync[events]; offline socket guard in tests; mongodb:// rule in scan-secrets
+- content_hash covers the mapped content fields only; Pocket's raw wire payload is excluded (deviation d2)
+- Default taxonomy (q8): the default labels stay, and a `sensitive` filter joins `has_action_items`; an unanswered filter is now absent (unknown) instead of 0.0
+- Automatic catch-up (d6): a fresh install backfills from POCKETSYNC_BACKFILL_SINCE (default 2024-01-01), an upgrade that bumps LANDING_SCHEMA re-lands every recording once, and downtime of any length is covered by the watermark window
+
+### Fixed
+
+- Pocket client: a hard 429 arms the rate-limit throttle, every thread sharing the client waits out an armed window, and a concurrent response with quota left no longer disarms it
+- Webhooks: the dedupe key is a durable inbox entry, kept pending until handled and replayed on start and after failures, so an acknowledged delete or merge survives a restart or a store blip
+- Landing: a failed audio download no longer aborts the reconcile pass (text still lands); missing audio is retried by later passes; audio is fetched once and never re-downloaded on content changes
+- Reconciler: change detection compares timestamps format-insensitively and never treats a missing updated_at as unchanged
+- Events: sinks.mongo carries doc_id as documented (was id)
+- Events: the envelope source is `agent://pocketsync`; events-cli rejects a bare name, so every publish had been refused (found by the first live backfill)
+- Audio Pocket does not have (404 on audio-url) is recorded as `audio_absent` and no longer retried every pass; other audio failures are logged to `sync_state.errors` (found by the first live backfill)
+- Enrichment: gateway 429/500/502/504 are retried instead of marking the doc as error; serve re-queues docs classified under a stale taxonomy at start
+- Docs: CLAUDE.md, the three sibling harness files and the README now describe what is built instead of a scaffold
+
 ## [0.10.1] - 2026-10-14
 
 ### Changed

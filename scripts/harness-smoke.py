@@ -113,6 +113,24 @@ STEWARD_WAIVED_PORTABILITY_PATHS = frozenset(
     }
 )
 
+#: devague record artifacts quote confirmed claim text verbatim (the spec, plan, split
+#: and delivery exports and the ``.devague/`` state behind them), so a ``~/.local/share``
+#: example inside a confirmed claim cannot be reworded there. Portability findings under
+#: these prefixes are WAIVED the same loud way; operational docs and config are not.
+STEWARD_WAIVED_RECORD_PREFIXES = (
+    ".devague/",
+    "docs/specs/",
+    "docs/plans/",
+    "docs/deliveries/",
+)
+
+
+def _waived_portability_path(path: str) -> bool:
+    return path in STEWARD_WAIVED_PORTABILITY_PATHS or path.startswith(
+        STEWARD_WAIVED_RECORD_PREFIXES
+    )
+
+
 PASS, FAIL, SKIP, WAIVED = "PASS", "FAIL", "SKIP", "WAIVED"
 
 
@@ -501,7 +519,7 @@ def check_steward_doctor(repo: Path, timeout: int) -> Result:
         check = str(finding.get("check", "?"))
         message = str(finding.get("message", ""))
         paths = set(_FINDING_PATH.findall(message))
-        if check == "portability" and paths and paths <= STEWARD_WAIVED_PORTABILITY_PATHS:
+        if check == "portability" and paths and all(map(_waived_portability_path, paths)):
             waived.append(f"{check} ({', '.join(sorted(paths))})")
         else:
             unexpected.append(f"{check}: {message.strip()[:300]}")

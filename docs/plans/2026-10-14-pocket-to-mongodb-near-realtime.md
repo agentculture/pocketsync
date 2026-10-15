@@ -1,0 +1,212 @@
+# Build Plan — pocket to mongodb near-realtime
+
+slug: `pocket-to-mongodb-near-realtime` · status: `exported` · from frame: `pocket-to-mongodb-near-realtime`
+
+> pocketsync keeps a local MongoDB continuously up to date with every Pocket recording's transcript, summary, action items and metadata, landing new recordings as close to realtime as Pocket's API limits allow
+
+## Tasks
+
+### t1 — Core model, content hash and config/secrets loader
+
+- instruction: Own pocketsync/model.py, pocketsync/config.py, pyproject.toml, tests/`test_model.py`, tests/`test_config.py`. stdlib only (tomllib for config). No other task edits pyproject.toml, so add every extra/dev dep needed by later tasks here. Never log secret values.
+- covers: c15, h18, c53
+- acceptance:
+  - pocketsync/model.py defines a Recording dataclass (id, title, timestamps, speakers, transcript segments, summary, action items, tags, raw metadata) and `content_hash`() over a canonical JSON form that is stable across key order and excludes volatile fields (`fetched_at`)
+  - pocketsync/config.py loads `POCKETSYNC_API_KEY`, `POCKETSYNC_WEBHOOK_SECRET`, `POCKETSYNC_GATEWAY_API_KEY`, `POCKETSYNC_MONGO_URI`, `POCKETSYNC_FILES_ROOT` and an optional git-ignored TOML config path; a missing required secret raises CliError(code 2) with a remediation hint; secrets are never included in repr/str
+  - pyproject.toml declares optional extras mongo = \[pymongo\] and events = \[events-cli\] and adds pymongo to the dev group; dependencies = \[\] stays empty
+  - tests/`test_model.py` and tests/`test_config.py` pass offline
+
+### t2 — Pocket source adapter: interface, official HTTP client, fake
+
+- instruction: Own pocketsync/pocket/ and its tests. Endpoint shapes are in the spec scope section (s8, s10) and docs.heypocketai.com/docs/api. Accept unknown 'state' values as opaque strings (v3). Synthetic fixtures only; no URL keys in JSON fixtures (scan-secrets).
+- covers: c13, h17, c52, h35
+- acceptance:
+  - pocketsync/pocket/base.py defines a read-only PocketSource protocol: `list_recordings`(`start_date`, `end_date`, page, limit<=100), `get_recording`(id, `include_transcript`, `include_summarizations`), `get_audio_url`(id, `expires_in`); it has no write methods
+  - pocketsync/pocket/http.py implements it with urllib against <https://public.heypocketai.com/api/v1/public/*> with 'Authorization: Bearer `pk_`...'; HTTP 429 raises RateLimited carrying Retry-After when present; 401 raises an auth CliError; nothing outside the adapter sees wire JSON (it maps to model.Recording)
+  - pocketsync/pocket/fake.py is an in-memory PocketSource seeded with synthetic recordings, able to simulate pagination, 429s, edits (`updated_at` bump), deletes and merges
+  - grep for production.heypocketai and firebase in pocketsync/ returns nothing; tests/`test_pocket_http.py` (urllib mocked) and tests/`test_pocket_fake.py` pass offline
+
+### t3 — pocketsync-mongo deployment (atlas-local, bind mounts, auth, loopback)
+
+- instruction: Own deploy/mongo/, docs/operations/pocketsync-mongo.md and the .gitignore line. Settle v9/v11: inspect the image (docker image inspect / its entrypoint docs) to find where mongot persists search-index data and mount it too; record the finding in the doc. Do not touch other mongo containers on spark.
+- covers: c30, h25, h36
+- acceptance:
+  - deploy/mongo/docker-compose.yml runs mongodb/mongodb-atlas-local (pinned tag) as container pocketsync-mongo, restart: unless-stopped, ports 127.0.0.1:27019:27017 only, bind mounts from `POCKETSYNC_DATA_DIR` (default ~/.local/share/pocketsync/mongo) for /data/db, /data/configdb and the mongot data dir, credentials from a git-ignored deploy/mongo/.env (deploy/mongo/.env.example committed with placeholders)
+  - docs/operations/pocketsync-mongo.md documents up/down, where data lives on the host, and the re-create check; an unauthenticated mongosh connection is refused
+  - docker compose -f deploy/mongo/docker-compose.yml config validates; .gitignore covers deploy/mongo/.env
+
+### t4 — Update the API premise in all four harness prompt files
+
+- instruction: Own CLAUDE.md, AGENTS.override.md, .pi/SYSTEM.md, AGENTS.colleague.md, QWEN.md. Ground every statement in the spec docs/specs/2026-10-14-pocket-to-mongodb-near-realtime.md; mark unbuilt parts (planned). Keep 'describes this project as pocketsync' true for the harness probes.
+- covers: c10, h14, c36, h3
+- acceptance:
+  - CLAUDE.md 'Verify the API premise first' and Target architecture sections describe the official API (`pk_` key), signed webhooks, the mongo sink, atlas-local and enrichment; Firebase/reverse-engineered text is replaced and marked superseded; status section still states what is built vs (planned)
+  - AGENTS.override.md, .pi/SYSTEM.md (keeps lobes-cli associate attribution), AGENTS.colleague.md and QWEN.md carry the same summary; no bare AGENTS.md is added
+  - uv run python scripts/harness-smoke.py --stage config passes; markdownlint-cli2 on the five files passes
+
+### t5 — Enrichment clients: transcript chunking, gemma2-embed and decider gateway client
+
+- instruction: Own pocketsync/enrich/chunking.py, pocketsync/enrich/gateway.py and their tests. API shapes: lobes-cli docs/embeddinggemma-2.md and lobes-cli-orin-deciders docs/decider.md (spec s17, s20). Token count can be a conservative chars/4 estimate. Default taxonomy (q8 still open): meeting, call, idea, todo-reminder, personal-note, lecture-learning, other + noul 'has action items for me'.
+- covers: c24, h21, c25, h22, c44, h28
+- acceptance:
+  - pocketsync/enrich/chunking.py splits transcript segments into chunks under a configurable token budget (default well under 8192) preserving segment start/end times; a synthetic transcript over 8192 tokens yields multiple chunks
+  - pocketsync/enrich/gateway.py: embed(texts) POSTs {model: gemma2-embed, input, `prompt_name`: Document} to `POCKETSYNC_GATEWAY_URL` (default <http://localhost:8001/v1>)/embeddings with Bearer key and asserts 768-d vectors; classify(text) POSTs to /v1/systemone with X-Lobes-Model decider:general, building choice/noul questions from the configured taxonomy; 503/404 raise a retryable EnrichmentUnavailable
+  - the taxonomy (labels, descriptions, single/multi, extra yes/no filters) is loaded from config with a shipped default; two taxonomies produce different request bodies and a `taxonomy_version` hash
+  - tests/`test_chunking.py` and tests/`test_gateway.py` pass against a fake gateway (no network)
+
+### t6 — Webhook signature verification and parsing (pure module)
+
+- instruction: Own pocketsync/webhook/verify.py (+ `__init__.py`) and its test. Pure functions, no I/O, no server. Spec s10 and v4 describe the header quirks.
+- covers: c51, h34
+- acceptance:
+  - pocketsync/webhook/verify.py verify(headers, `raw_body`, secret, now, tolerance) checks HMAC-SHA256 hex of '{timestamp}.{`raw_body`}' against X-HeyPocket-Signature (raw hex or sha256= prefix), accepts ms and s timestamps, rejects missing/unsigned/stale/forged with distinct reasons, uses hmac.`compare_digest`
+  - `parse_event`(`raw_body`) returns (`event_type`, `recording_id`, `event_timestamp`, `dedupe_key`) where `dedupe_key` = (event, recording id, timestamp), never parsed before verification
+  - tests/`test_webhook_verify.py` covers valid ms/s, both signature forms, unsigned, stale, tampered body, wrong secret
+
+### t7 — Sink interface and local file sink with atomic audio download
+
+- instruction: Own pocketsync/sinks/base.py, pocketsync/sinks/local.py, tests/`test_sink_local.py`, tests/`test_sink_contract.py`. Root defaults to `POCKETSYNC_FILES_ROOT` (outside the repo). Return relative paths + size + sha256 so the mongo doc can store them.
+- depends on: t1, t2
+- covers: c2, h9, c28, h24
+- acceptance:
+  - pocketsync/sinks/base.py defines the Sink protocol shared by local and mongo (`put_recording`, `get_state`, tombstone, `mark_merged`); no Mongo-specific types in it
+  - pocketsync/sinks/local.py writes `<root>/<YYYY>/<MM>/<recording-id>/` transcript.json, transcript.md, summary.md and audio.`<ext>` via temp file + os.replace, meta.json last; audio is streamed from the pre-signed URL, hashed (sha256) while writing; a simulated partial download leaves no final-named file
+  - tests/`test_sink_local.py` and a shared tests/`test_sink_contract.py` (parametrized; mongo param added by t8) pass offline
+
+### t8 — Mongo sink and sync-state store (upserts, field groups, CAS, tombstones)
+
+- instruction: Own pocketsync/sinks/mongo.py, pocketsync/state.py and their tests; add the mongo param to tests/`test_sink_contract.py` only via a conftest fixture in tests/`test_sink_mongo.py` if needed (don't edit t7's file in the same wave — t8 depends on t7 so editing after it merges is fine). Decisions c58 (tombstone) and c20 (one doc per recording) apply.
+- depends on: t1, t7
+- covers: c3, h10, c4, h11, c43, h27
+- acceptance:
+  - pocketsync/sinks/mongo.py imports pymongo lazily; import pocketsync and the local sink work with pymongo absent (test blocks it via sys.modules)
+  - `put_recording` upserts one doc per recording id into 'recordings' with content fields under $set only when `content_hash` changed (identical re-delivery leaves hash and `updated_at` unchanged); a content change sets enrichment.status=pending
+  - `set_enrichment`(id, `expected_hash`, payload) writes only enrichment fields and only if `content_hash` == `expected_hash` (returns False otherwise); tombstone sets `deleted_in_pocket` + time; `mark_merged` sets `merged_into`; nothing deletes docs
+  - pocketsync/state.py stores watermark, dedupe keys (unique index), last run and errors in a separate '`sync_state`' collection, with an in-memory fake for tests; tests/`test_sink_mongo.py` and tests/`test_state.py` pass against a fake/stub (mongomock-free stub acceptable)
+
+### t9 — Vector search index manager with model/dimension guard
+
+- instruction: Own pocketsync/vindex.py and tests/`test_vindex.py`. Use the pymongo search-index API (`create_search_index` with type vectorSearch) lazily imported. Never mix vector spaces (lobes docs/orin-embed-deployment.md:180-187).
+- depends on: t1
+- covers: c57, h40
+- acceptance:
+  - pocketsync/vindex.py `ensure_index`(collection, model, dims) creates (idempotently) a vectorSearch index over chunk and summary vector paths with numDimensions=dims, cosine similarity and filter fields for type labels, `deleted_in_pocket` and `recording_at`
+  - check(model, dims) raises CliError with remediation 're-embed --apply' when the existing index or any stored doc uses a different model or dimension; `reembed_plan`() lists affected doc ids (dry-run)
+  - tests/`test_vindex.py` passes against a stub collection recording the index definitions
+
+### t10 — Handoff events: events.jsonl outbox and events-cli QoS 1 publish
+
+- instruction: Own pocketsync/events.py and tests/`test_events.py`. Event type e.g. pocketsync.recording.enriched (decision c59: one event after enrichment). Track published offsets in a sidecar file next to the outbox. events-cli API: `events_cli`/client.py EventClient, CHANGELOG lines 12-23. Backtick placeholders in docs.
+- depends on: t1
+- covers: c7, h13, c55, h38
+- acceptance:
+  - pocketsync/events.py appends one event per (recording id, content hash) to `<files root>/events.jsonl` with id, sink locations (mongo collection + doc id, file paths), `content_hash`, created|updated, enrichment summary (type labels); duplicate (id, hash) is not re-appended
+  - a publisher drains unpublished outbox entries via `events_cli` EventClient.`publish_event` with qos=1 (lazy import, optional extra); broker-down leaves them pending and they publish on the next drain; a fake client in tests asserts qos=1
+  - tests/`test_events.py` passes offline
+
+### t11 — Landing engine: canonical fetch, files, mongo upsert, delete/merge
+
+- instruction: Own pocketsync/sync.py and tests/`test_sync.py`. Dry-run mode returns the planned writes without performing them (c46).
+- depends on: t2, t7, t8
+- covers: c50, h33
+- acceptance:
+  - pocketsync/sync.py land(`recording_id`, source, sinks) fetches GET details (transcript + summarizations), fetches audio URL and writes files, then upserts mongo with file paths/hash — the same function serves webhook and reconciler paths, so docs are identical either way (test compares both paths)
+  - `handle_deleted`(id) tombstones and `handle_merged`(src, dst) marks `merged_into`; neither removes files or docs
+  - a landing never calls the gateway (enrichment is queued via enrichment.status=pending only); tests/`test_sync.py` passes with fake adapter + fake sinks
+
+### t12 — Enrichment worker: pending queue, CAS writes, concurrency cap, event after enrichment
+
+- instruction: Own pocketsync/enrich/worker.py and tests/`test_enrich_worker.py`. Store model id, dims and `taxonomy_version` on the doc; a `taxonomy_version` change marks docs for re-classification (c44).
+- depends on: t5, t8, t10
+- covers: c26, h23, c48, h31
+- acceptance:
+  - pocketsync/enrich/worker.py processes docs with enrichment.status pending: chunk -> embed chunks + summary -> classify -> `set_enrichment`(`expected_hash`); on EnrichmentUnavailable the doc stays pending with backoff; a content change mid-enrichment discards the stale result and re-queues
+  - concurrency never exceeds the configured cap (default 2); after a successful enrichment exactly one outbox event is appended for that content hash
+  - tests/`test_enrich_worker.py` covers 503 then 200, interleaved content change, cap, and single event
+
+### t13 — Reconciler and backfill with overlap, 429 backoff and webhook-miss counter
+
+- instruction: Own pocketsync/reconcile.py and tests/`test_reconcile.py`. Default interval 5 min (configurable); rate limits unknown (risk) so stay conservative.
+- depends on: t11
+- covers: c12, h16, c40, h7, c56, h39
+- acceptance:
+  - pocketsync/reconcile.py reconcile(since) pages `list_recordings` from (watermark - 2 days) with limit 100, lands recordings whose `updated_at` or content hash changed, honours RateLimited with Retry-After/exponential backoff, advances the watermark only after success
+  - a recording landed by the reconciler that no webhook delivered increments `sync_state`.`webhook_missed`; a second pass with no remote changes performs 0 writes and appends 0 events (asserted in CI)
+  - backfill(since) over 250 fake recordings across 3 pages with one 429 lands all without manual restart; tests/`test_reconcile.py` passes
+
+### t14 — Webhook HTTP receiver: loopback server, size limit, fast ack, dedupe, enqueue
+
+- instruction: Own pocketsync/webhook/server.py and tests/`test_webhook_server.py`. Zero core deps. The queue consumer (landing) is wired by serve (t15).
+- depends on: t6, t8
+- covers: c11, h15, c49, h32
+- acceptance:
+  - pocketsync/webhook/server.py serves POST /hooks/pocket on `127.0.0.1:<configured port>` only (stdlib http.server/ThreadingHTTPServer); Content-Length over the limit (default 5 MB) -> 413 without reading the body; unverified -> 401 and nothing stored
+  - verified events record the dedupe key in `sync_state`, enqueue (recording id, event) to an in-process queue and return 2xx in under 2 s before any outbound call; duplicates return 2xx and enqueue nothing; GET / returns 404; responses send Cache-Control: no-store
+  - tests/`test_webhook_server.py` exercises a real loopback server with a slow fake landing handler and measures ack latency
+
+### t15 — CLI verbs: auth, list, sync, watch, serve, status, reembed (+ catalog, learn, overview, doctor)
+
+- instruction: Own pocketsync/cli/ (all files), pocketsync/explain/catalog.py, pocketsync/serve.py and new tests/`test_cli_`\*.py. Follow the CliError/`_output` contract in CLAUDE.md. auth verifies the `pk_` key with one list call (limit 1).
+- depends on: t9, t11, t12, t13, t14
+- covers: c42, c46, h30, c54, h37
+- acceptance:
+  - new modules under pocketsync/cli/`_commands`/ registered in `_build_parser`; every verb has --json; write verbs (sync, reembed) are dry-run unless --apply and a dry-run performs 0 writes (test); serve runs receiver + landing consumer + reconciler loop + enrichment worker in one process with graceful SIGTERM
+  - status --json reports watermark, last run, last verified webhook time, `webhook_missed`, enrichment backlog and last errors; doctor adds checks for gateway reachability, mongo auth, index/model match and webhook freshness
+  - explain catalog, learn (text + JSON) and overview `_VERBS` include every new verb; uv run teken cli doctor . --strict passes; tests/`test_cli_sync.py` etc. pass
+
+### t16 — README: document schema, event contract, env table and audiences
+
+- instruction: Own README.md only. Derive field names from pocketsync/sinks/mongo.py and pocketsync/events.py as merged; mark unbuilt parts (planned).
+- depends on: t8, t10
+- covers: c35, h2
+- acceptance:
+  - README.md documents the recordings doc schema (content, files, enrichment, tombstone/merge fields), the `sync_state` collection, the events.jsonl / events-cli event schema as a public contract, the env/secret table (all four secrets) and both audiences (operator, culture-rules/mesh consumers)
+  - markdownlint-cli2 README.md passes; python3 scripts/scan-secrets.py passes
+
+### t17 — Test gates: offline guarantee, mongodb:// secret scan, opt-in atlas-local integration test
+
+- instruction: Own tests/conftest.py, scripts/scan-secrets.py, tests/`test_scan_secrets.py`, tests/integration/. Keep the existing scanner behaviour intact.
+- depends on: t3, t9, t8
+- covers: c45, h29, c5, h12
+- acceptance:
+  - tests/conftest.py blocks outbound sockets except loopback in the default run (a test proves a network call fails); uv run pytest -n auto passes offline
+  - scripts/scan-secrets.py also flags mongodb:// or mongodb+srv:// URIs with credentials or non-localhost hosts in tracked files; tests/`test_scan_secrets.py` covers it
+  - tests/integration/`test_atlas_local.py` (skipped unless `POCKETSYNC_IT_MONGO`=1) upserts synthetic docs into a real atlas-local, creates the vector index and runs a $vectorSearch with a type filter
+
+### t18 — Deploy: systemd serve unit, cultureflare tunnel, Access Bypass for /hooks/pocket, Pocket webhook
+
+- instruction: Own deploy/systemd/, deploy/cloudflared/, docs/operations/pocketsync-culture-dev.md. Cloudflare and Pocket-UI steps are performed by the operator (their credentials) — the agent writes the runbook and units and runs only the dry-run/show commands. Follow culture-rules docs/operations/rules-culture-dev.md:204-231.
+- depends on: t15, t3
+- covers: c21, h19, c22, h20, h26
+- acceptance:
+  - deploy/systemd/pocketsync-serve.service (user unit, Restart=on-failure, secrets via grant or EnvironmentFile outside the repo) and deploy/cloudflared/cloudflared-pocketsync.service mirror culture-rules' cloudflared-rules.service
+  - docs/operations/pocketsync-culture-dev.md is the runbook: cultureflare remote-login setup --hostname pocketsync.culture.dev `--service http://127.0.0.1:<port> --allow <operator>` (Access on), the exact-path Bypass app for pocketsync.culture.dev/hooks/pocket via the Cloudflare API, the Pocket personal webhook creation (secret saved once to env), and verification commands
+  - curl -sI <https://pocketsync.culture.dev/> redirects to cloudflareaccess; a Pocket test delivery reaches the receiver with 2xx; ss -ltn shows the receiver on 127.0.0.1 only
+
+### t19 — End-to-end acceptance: latency, restart durability, real doc fields
+
+- instruction: Own docs/operations/acceptance-2026-10.md only. Never commit real transcripts or recording content; report numbers and field presence only. Operator records the private test clips.
+- depends on: t18, t17, t16
+- covers: c1, h1, c37, h4, c38, h5, c39, h6, c41, h8
+- acceptance:
+  - over >= 10 real deliveries, p95 webhook-receipt -> doc landed <= 10 s and -> enriched <= 60 s, computed from stored timestamps and written to docs/operations/acceptance-2026-10.md (no transcript content in the report)
+  - docker compose down then up with container re-creation leaves doc count, vectors and index unchanged and the first $vectorSearch returns results with 0 re-embeds
+  - one real recording doc shows every after-state field; the operator confirms the owned searchable copy meets the goal (h4)
+
+### t20 — Open the eidetic-cli migration issue after atlas-local is validated
+
+- instruction: Follow-up v8 / decision c31. Requires the user's go-ahead before posting (outward-facing).
+- depends on: t19
+- acceptance:
+  - an issue on agentculture/eidetic-cli proposes moving from client-side cosine to mongodb-atlas-local $vectorSearch, citing pocketsync's validated setup (compose file, index manager, acceptance numbers); filed via the communicate skill, signed - pocketsync (Claude)
+
+## Risks
+
+- [unknown_nonblocking] Pocket rate limits are undocumented (v1); the reconciler interval and backfill pacing may need tuning after a live probe with a real `pk_` key (task t13)
+- [unknown_nonblocking] mongot search-index persistence path in atlas-local is undocumented (v9, v11); if indexes don't survive re-create, t19's restart check fails and the compose mounts must change (task t3)
+- [unknown_nonblocking] gemma2-embed prose retrieval quality is unvalidated (v6, lobes #296); acceptance measures latency and presence, not ranking quality (task t19)
+- [unknown_nonblocking] Decider label taxonomy (q8) is still open; t5 ships a default taxonomy in config and the operator may revise it (a taxonomy change re-classifies) (task t5)
+- [unknown_nonblocking] Cloudflare zone WAF/Bot Fight could challenge Pocket POSTs even with the Access Bypass (v5); verify with a Pocket test delivery in t18 (task t18)
+- [follow_up] With the single event after enrichment (c59), a long Orin outage delays all handoff events (v13); revisit with a pending-too-long fallback event if it bites (task t12)
+- [out_of_scope] Backups of ~/.local/share/pocketsync are out of this plan (v10)
+- [unknown_nonblocking] t18 and t19 need operator actions (Cloudflare API/Access, Pocket webhook UI, recording real test clips); they cannot be fanned out to unattended subagents (task t18)

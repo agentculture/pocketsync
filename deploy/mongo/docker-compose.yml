@@ -1,0 +1,31 @@
+# pocketsync-mongo: the MongoDB Atlas Local (mongod + mongot) store for
+# pocketsync. Loopback-only, authenticated, data on host bind mounts.
+# See docs/operations/pocketsync-mongo.md.
+#
+# Credentials come from deploy/mongo/.env (git-ignored; copy .env.example).
+# This stack is independent of the other mongo containers on the host
+# (qq-mongodb :27017, eidetic-mongo :27018, ...): own name, own port 27019.
+name: pocketsync-mongo
+
+services:
+  pocketsync-mongo:
+    image: mongodb/mongodb-atlas-local:8.0.34
+    container_name: pocketsync-mongo
+    # Fixed hostname is REQUIRED for persistence: the single-node replica set
+    # stores its member host name in /data/db. A re-created container gets a
+    # new random hostname otherwise, mongod comes up as RSGhost with no
+    # primary and the healthcheck fails forever.
+    hostname: pocketsync-mongo
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      # Loopback only. Never publish on 0.0.0.0.
+      - "127.0.0.1:27019:27017"
+    volumes:
+      # Host data root defaults to $HOME/.local/share/pocketsync/mongo.
+      # The image runs as uid 1000 (mongod); the dirs must be writable by it.
+      - ${POCKETSYNC_DATA_DIR:-${HOME}/.local/share/pocketsync/mongo}/db:/data/db
+      - ${POCKETSYNC_DATA_DIR:-${HOME}/.local/share/pocketsync/mongo}/configdb:/data/configdb
+      # mongot (Atlas Search / vectorSearch) persists its index data here.
+      - ${POCKETSYNC_DATA_DIR:-${HOME}/.local/share/pocketsync/mongo}/mongot:/data/mongot

@@ -1,0 +1,39 @@
+# Default recording taxonomy. Override by passing a path to load_taxonomy().
+instructions = "What kind of recording is this?"
+multi = false
+
+[[labels]]
+name = "meeting"
+description = "a conversation between several people about work or a shared topic"
+
+[[labels]]
+name = "call"
+description = "a phone or video call with one other person"
+
+[[labels]]
+name = "idea"
+description = "a spoken idea, brainstorm or thought about something to build or try"
+
+[[labels]]
+name = "todo-reminder"
+description = "a reminder or to-do the speaker dictates for themselves"
+
+[[labels]]
+name = "personal-note"
+description = "a personal reflection, journal entry or private note"
+
+[[labels]]
+name = "lecture-learning"
+description = "a lecture, talk, podcast or other learning material"
+
+[[labels]]
+name = "other"
+description = "anything that does not fit the other labels"
+
+[[filters]]
+name = "has_action_items"
+instructions = "Does this recording contain action items for me?"
+
+[[filters]]
+name = "sensitive"
+instructions = "Is this recording sensitive or private (health, money, relationships, credentials or other personal matters) so that it should not be shared outside my own stores?"

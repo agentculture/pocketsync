@@ -1,9 +1,10 @@
 """Unified CLI entry point for pocketsync.
 
 The agent-first global verbs (``whoami``, ``learn``, ``explain``, ``overview``,
-``doctor``) are registered here under :mod:`pocketsync.cli._commands`,
-alongside the ``cli`` noun group. Future noun groups register via their own
-``register()`` functions following the same pattern.
+``doctor``), the ``cli`` noun group and the operational verbs (``auth``, ``list``,
+``sync``, ``watch``, ``serve``, ``status``, ``reembed``) are registered here from
+:mod:`pocketsync.cli._commands`, each via its module's ``register()``. Operational
+verbs get their collaborators from :mod:`pocketsync.cli._runtime`.
 
 Error propagation contract
 --------------------------
@@ -62,16 +63,26 @@ def _argv_has_json(argv: list[str] | None) -> bool:
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    from pocketsync.cli._commands import auth as _auth_cmd
     from pocketsync.cli._commands import cli as _cli_group
     from pocketsync.cli._commands import doctor as _doctor_cmd
     from pocketsync.cli._commands import explain as _explain_cmd
     from pocketsync.cli._commands import learn as _learn_cmd
+    from pocketsync.cli._commands import list_cmd as _list_cmd
     from pocketsync.cli._commands import overview as _overview_cmd
+    from pocketsync.cli._commands import reembed as _reembed_cmd
+    from pocketsync.cli._commands import serve as _serve_cmd
+    from pocketsync.cli._commands import status as _status_cmd
+    from pocketsync.cli._commands import sync_cmd as _sync_cmd
+    from pocketsync.cli._commands import watch as _watch_cmd
     from pocketsync.cli._commands import whoami as _whoami_cmd
 
     parser = _CliArgumentParser(
         prog="pocketsync",
-        description="pocketsync — sync Pocket recorder transcripts and summaries to disk or S3.",
+        description=(
+            "pocketsync — land Pocket recorder transcripts and summaries in local files "
+            "and MongoDB, enriched with embeddings and labels."
+        ),
     )
     parser.add_argument(
         "--version",
@@ -88,9 +99,14 @@ def _build_parser() -> argparse.ArgumentParser:
     _overview_cmd.register(sub)
     _doctor_cmd.register(sub)
     _cli_group.register(sub)
-    # Register your own noun groups here:
-    #   from pocketsync.cli._commands import my_noun as _my_noun_group
-    #   _my_noun_group.register(sub)
+    # Operational verbs (Pocket -> files + Mongo).
+    _auth_cmd.register(sub)
+    _list_cmd.register(sub)
+    _sync_cmd.register(sub)
+    _watch_cmd.register(sub)
+    _serve_cmd.register(sub)
+    _status_cmd.register(sub)
+    _reembed_cmd.register(sub)
 
     return parser
 

@@ -302,3 +302,78 @@ def test_a_non_http_scheme_is_not_treated_as_an_endpoint(tmp_path: Path) -> None
     """The endpoint check is scoped to http(s) URLs, as documented."""
     findings = _write_and_scan(tmp_path, '{"endpoint": "unix:///var/run/thing.sock"}\n')
     assert findings == []
+
+
+# ---------------------------------------------------------------------------
+# t17: mongodb:// / mongodb+srv:// URIs in ANY tracked file.
+# ---------------------------------------------------------------------------
+
+
+def _scan_text(tmp_path: Path, name: str, content: str) -> list:
+    return scan_secrets._scan_mongo_uris(name, content)
+
+
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "mongodb://admin:hunter2hunter2@localhost:27017/db",  # credentials, even on localhost
+        "mongodb://admin@localhost/db",  # username only is still userinfo
+        "mongodb+srv://cluster0.abcde.mongodb.net/db",  # non-localhost host
+        "mongodb://db.example.com:27017/db",  # non-localhost host, no creds
+        "mongodb://10.0.0.5:27017,10.0.0.6:27017/?replicaSet=rs0",  # any non-local host in list
+        "mongodb://u:p@localhost:27017,evil.example.net:27017/",  # one bad host in a seed list
+    ],
+)
+def test_bad_mongo_uri_is_flagged(tmp_path: Path, uri: str) -> None:
+    findings = _scan_text(tmp_path, "docs/x.md", f"connect with {uri} now\n")
+    assert [f.kind for f in findings] == ["mongo-uri"], uri
+
+
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "mongodb://localhost:27017/",
+        "mongodb://127.0.0.1:27019/test",
+        "mongodb://[::1]:27017/db",
+        "mongodb://pocketsync-mongo:27017/db",  # compose service name
+        "mongodb://pocketsync:<password>@127.0.0.1:27019/db?authSource=admin",  # placeholder
+        "mongodb://<user>:<password>@localhost/db",
+        "mongodb://${MONGO_USER}:${MONGO_PASS}@localhost/db",
+        "mongodb://$USER:$PASS@localhost/db",
+        "mongodb+srv://<user>:<password>@<cluster-host>/db",
+        "startswith('mongodb://')",  # bare scheme, no authority
+    ],
+)
+def test_safe_mongo_uri_is_not_flagged(tmp_path: Path, uri: str) -> None:
+    assert _scan_text(tmp_path, "docs/x.md", f"use {uri}\n") == []
+
+
+def test_mongo_uri_finding_never_echoes_the_password(tmp_path: Path) -> None:
+    findings = _scan_text(tmp_path, "a.txt", "mongodb://admin:SuperSecretPw99@localhost/db\n")
+    assert findings
+    assert "SuperSecretPw99" not in str(findings[0])
+
+
+def test_synthetic_loopback_creds_allowed_only_under_tests() -> None:
+    line = "mongodb://u:p@localhost:27017/\n"
+    assert scan_secrets._scan_mongo_uris("tests/test_x.py", line) == []
+    assert scan_secrets._scan_mongo_uris("pocketsync/x.py", line) != []
+    # non-loopback hosts stay flagged even in tests
+    assert scan_secrets._scan_mongo_uris("tests/test_x.py", "mongodb://u:p@db.example.com/\n")
+
+
+def test_devague_ledger_may_quote_synthetic_loopback_test_ids() -> None:
+    """``.devague/`` evidence records quote pytest node ids, which embed test params."""
+    line = '"test": "tests/x.py::test_bad[mongodb://admin:hunter2hunter2@localhost:27017/db]"\n'
+    assert scan_secrets._scan_mongo_uris(".devague/deliveries/plan.json", line) == []
+    # a credentialed non-loopback URI in the ledger is still a finding
+    remote = '"note": "mongodb://u:p@db.example.com/"\n'
+    assert scan_secrets._scan_mongo_uris(".devague/deliveries/plan.json", remote)
+
+
+def test_mongo_uri_in_any_file_type_fails_the_cli(tmp_path: Path) -> None:
+    planted = tmp_path / "notes.md"
+    planted.write_text("uri: mongodb+srv://u:pw@cluster0.abcde.mongodb.net/\n", encoding="utf-8")
+    result = _run_cli(str(planted))
+    assert result.returncode == 1
+    assert "mongo-uri" in result.stderr

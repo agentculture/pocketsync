@@ -1,0 +1,21 @@
+# systemd USER unit: the pocketsync.culture.dev tunnel connector on the serving host.
+# Install (no root) as ~/.config/systemd/user/cloudflared-pocketsync.service, then:
+#   systemctl --user daemon-reload && systemctl --user enable --now cloudflared-pocketsync
+#   loginctl enable-linger "$USER"
+# The connector token is a HIDDEN secret in the unit user's grant store. `grant run --inject`
+# hands it to cloudflared as TUNNEL_TOKEN at exec time: it is on no disk path, not in argv, and
+# not in this file. Placeholders (@NAME@) are filled by the operator; see
+# docs/operations/pocketsync-culture-dev.md. Mirrors culture-rules' cloudflared-rules.service.
+[Unit]
+Description=cloudflared tunnel connector for pocketsync.culture.dev (loopback webhook receiver)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/grant run --inject TUNNEL_TOKEN=@TUNNEL_TOKEN_SECRET@ -- %h/.local/bin/cloudflared tunnel --no-autoupdate run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

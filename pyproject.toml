@@ -1,6 +1,6 @@
 [project]
 name = "pocketsync"
-version = "0.10.1"
+version = "0.11.0"
 description = "Sync Pocket voice-recorder recordings, transcripts (STT) and summaries from the Pocket cloud to local disk or S3 - a durable landing zone that culture-rules workflows fan out to anywhere."
 readme = "README.md"
 license = "Apache-2.0"
@@ -14,6 +14,10 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 dependencies = []
+
+[project.optional-dependencies]
+mongo = ["pymongo>=4.6"]
+events = ["events-cli"]
 
 [project.urls]
 Homepage = "https://github.com/agentculture/pocketsync"
@@ -40,6 +44,9 @@ dev = [
     "black>=23.7.0",
     "teken>=0.8",
     "pyyaml>=6.0",
+    "pymongo>=4.6",
+    "mongomock>=4.1",
+    "events-cli",
 ]
 
 [tool.coverage.run]
