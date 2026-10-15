@@ -45,6 +45,12 @@ class FileSet:
     def from_dict(cls, d: dict[str, Any]) -> FileSet:
         return cls(**{k: FileRef.from_dict(v) if v else None for k, v in d.items() if k in _SLOTS})
 
+    def with_refs(self, **refs: FileRef | None) -> FileSet:
+        """A copy with the given slots replaced (unknown slot names raise ``TypeError``)."""
+        data: dict[str, FileRef | None] = {name: getattr(self, name) for name in _SLOTS}
+        data.update(refs)
+        return FileSet(**data)
+
 
 _SLOTS = ("transcript_json", "transcript_md", "summary_md", "audio", "meta")
 

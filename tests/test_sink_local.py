@@ -217,3 +217,16 @@ def test_unsafe_id_rejected(tmp_path):
     evil = make_rec("../evil")
     with pytest.raises(CliError):
         sink.put_recording(evil)
+
+
+def test_fileset_with_refs_replaces_only_named_slots():
+    from pocketsync.sinks.base import FileRef, FileSet
+
+    a, b = FileRef("a", 1, "x"), FileRef("b", 2, "y")
+    fs = FileSet(transcript_md=a)
+    out = fs.with_refs(audio=b)
+    assert out.transcript_md == a
+    assert out.audio == b
+    assert fs.audio is None  # the original is untouched
+    with pytest.raises(TypeError):
+        fs.with_refs(not_a_slot=a)

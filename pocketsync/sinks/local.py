@@ -9,7 +9,6 @@ import os
 import re
 import tempfile
 import urllib.request
-from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -264,7 +263,7 @@ class LocalSink:
         if audio_url is not None and fs.audio is None:
             fs = self._fetch_audio(d, rec, fs, audio_url)
         new_meta = self._new_meta(rec, chash, meta, fs, audio_absent)
-        fs = replace(fs, meta=self._write_meta(d, new_meta))  # meta.json last
+        fs = fs.with_refs(meta=self._write_meta(d, new_meta))  # meta.json last
         return PutResult(True, chash, locs, fs)
 
     def _sync_absent_flag(
@@ -289,22 +288,19 @@ class LocalSink:
         sm = render_summary_md(rec).encode()
         for name, data in (("transcript.json", tj), ("transcript.md", tm), ("summary.md", sm)):
             _atomic_write(d / name, data)
-        updated: FileSet = replace(
-            fs,
+        return fs.with_refs(
             transcript_json=_ref(self.root, d / "transcript.json", tj),
             transcript_md=_ref(self.root, d / "transcript.md", tm),
             summary_md=_ref(self.root, d / "summary.md", sm),
         )
-        return updated
 
     def _fetch_audio(self, d: Path, rec: Recording, fs: FileSet, audio_url: str) -> FileSet:
         try:
             a = download_audio(audio_url, d, opener=self._opener)
         except (OSError, ValueError, http.client.HTTPException, CliError) as exc:
             raise AudioDownloadError(f"audio download failed for {rec.id}: {exc}") from exc
-        audio: FileRef = replace(a, rel_path=(d / a.rel_path).relative_to(self.root).as_posix())
-        updated: FileSet = replace(fs, audio=audio)
-        return updated
+        rel = (d / a.rel_path).relative_to(self.root).as_posix()
+        return fs.with_refs(audio=FileRef(rel_path=rel, size=a.size, sha256=a.sha256))
 
     @staticmethod
     def _new_meta(
