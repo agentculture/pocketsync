@@ -23,6 +23,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - API premise in the harness prompt files and README: official API + webhooks replace the reverse-engineered Firebase path
 - Optional extras pocketsync[mongo] and pocketsync[events]; offline socket guard in tests; mongodb:// rule in scan-secrets
+- content_hash covers the mapped content fields only; Pocket's raw wire payload is excluded (deviation d2)
 
 ### Fixed
 

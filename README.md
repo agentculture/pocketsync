@@ -122,7 +122,7 @@ strings.
 |-------|--------|
 | Content | `title`, `description`, `recording_at`, `duration` (seconds), `language`, `state`, `folder_id`, `tags[]`, `speakers[]`, `segments[]` (`start`, `end`, `text`, `speaker`, `speaker_name`), `summary` (markdown), `action_items[]` (`text`, `done`, `owner`) |
 | Source | `source.created_at`, `source.updated_at`: Pocket's own timestamps |
-| Identity | `content_hash` (SHA-256 of the canonical content), `landed_at` (first write), `updated_at` (pocketsync's write time; moves only when content changes) |
+| Identity | `content_hash` (SHA-256 of the canonical mapped content; Pocket's raw wire payload is excluded), `landed_at` (first write), `updated_at` (pocketsync's write time; moves only when content changes) |
 | Files | `files`: refs `{rel_path, size, sha256}` for `transcript_json`, `transcript_md`, `summary_md`, `audio` and `meta`; each is `null` when absent |
 | Tombstone | `deleted_in_pocket` (bool), `deleted_at` |
 | Merge | `merged_into` (surviving recording id), `merged_at` |

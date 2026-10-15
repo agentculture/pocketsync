@@ -69,15 +69,16 @@ Quoted verbatim from the `devague summary` skeleton:
 
 ## Mid-work Decisions
 
-All five deviation records are **proposed** (`--origin llm`) and await the
-operator's confirm. They are quoted here as recorded, not as approved.
+All five deviation records were filed `--origin llm` and have been
+**approved** by the operator (2026-10-15). They are quoted here as recorded.
 
 - `d1` — Run t2 after t1 merges (add dependency t2 -> t1) instead of in wave 0
   — t2's acceptance criterion 2 maps API responses to `model.Recording`, which
   t1 creates.
-- `d2` — Exclude `Recording.raw` from `content_hash`. **Not implemented**,
-  pending approval. Volatile wire fields would make every poll rewrite every
-  document.
+- `d2` — Exclude `Recording.raw` from `content_hash`. Volatile wire fields
+  would make every poll rewrite every document. Approved 2026-10-15 and
+  implemented test-first (`HASH_EXCLUDED_FIELDS` in `pocketsync/model.py`;
+  `tests/test_model.py::test_hash_ignores_raw_wire_payload`).
 - `d3` — `pocketsync-mongo` compose also pins `hostname: pocketsync-mongo`. A
   re-created single-node replica set otherwise comes up
   RSGhost/ReplicaSetNoPrimary (verified in a throwaway container).
@@ -103,13 +104,13 @@ operator's confirm. They are quoted here as recorded, not as approved.
 
 | Plan item | Reason for divergence | Classification |
 |-----------|-----------------------|----------------|
-| `t2` (`d1`, proposed) | scheduled after t1 instead of wave 0 because it depends on `model.Recording`. Content unchanged | acceptable |
-| `t2` (`d4`, proposed) | as built, the adapter dropped every action item and failed every audio download against the live API. A main-agent fixer remapped the shapes and added rate-limit throttling | needs-follow-up |
-| `t1` (`d2`, proposed) | proposed change to the hash contract, not built. Until decided, a Pocket-side touch or a volatile `raw` field re-triggers writes and enrichment | needs-follow-up |
-| `t3` (`d3`, proposed) | fixed hostname added beyond the acceptance criteria to make h25/c41 achievable | acceptable |
+| `t2` (`d1`, approved) | scheduled after t1 instead of wave 0 because it depends on `model.Recording`. Content unchanged | acceptable |
+| `t2` (`d4`, approved) | as built, the adapter dropped every action item and failed every audio download against the live API. A main-agent fixer remapped the shapes and added rate-limit throttling | needs-follow-up |
+| `t1` (`d2`, approved) | the hash covers the mapped content fields only, not Pocket's raw wire payload. Implemented after approval, so a wire-only change no longer re-triggers writes and enrichment | acceptable |
+| `t3` (`d3`, approved) | fixed hostname added beyond the acceptance criteria to make h25/c41 achievable | acceptable |
 | `t18` | the plan's live acceptance criteria (Access redirect, Pocket test delivery reaching the receiver, receiver on 127.0.0.1) are unmet because they need operator credentials | needs-follow-up |
 | `t19` | not started: blocked on t18's live steps and real recordings | needs-follow-up |
-| `t20` (`d5`, proposed) | filed before t19 instead of after it, citing integration-test validation | acceptable |
+| `t20` (`d5`, approved) | filed before t19 instead of after it, citing integration-test validation | acceptable |
 | `t9`/`t17` | the chunk index filter contract changed from `filter` to `parentFilter` (no record; settled by probe evidence) | acceptable |
 
 ## Evidence
@@ -146,11 +147,12 @@ operator's confirm. They are quoted here as recorded, not as approved.
 
 ## Delivery Claims
 
-Lapse ledger: `l1`–`l6` are all **proposed** (pending approval, not yet
-evidence). They record that t2, t7, t11 and t15 did not strictly work
+Lapse ledger: `l1`–`l7` are **approved** (2026-10-15), so they count as
+evidence here. They record that t2, t7, t11 and t15 did not strictly work
 test-first, that t2 guessed wire shapes (confirmed real and fixed by `d4`), and
-that t13 started from a wrong test premise. Confidence below is capped where
-those facts bear on a claim, even though the records are pending.
+that t13 started from a wrong test premise; `l7` records a scan-secrets run
+before `.devague/` was tracked. Confidence below is capped where those facts
+bear on a claim. Evidence `e1`–`e55` is also approved.
 
 | Claim | Confidence | Evidence |
 |-------|------------|----------|
@@ -178,11 +180,9 @@ those facts bear on a claim, even though the records are pending.
   latencies into `docs/operations/acceptance-2026-10.md` (numbers only), run the
   real-stack re-create check, and confirm the after-state fields. **Owner:**
   operator + agent, issue #3.
-- Approve or reject deviations `d1`–`d5` and lapses `l1`–`l6`, and adjudicate
-  obligations `o1`–`o38`, evidence `e1`–`e55` and deltas `b1`–`b3`. **Owner:**
-  operator.
-- Decide `d2` (exclude `Recording.raw` from the content hash) and implement it
-  if approved. **Owner:** operator decision, then agent.
+- Adjudicate deltas `b1`–`b3`. Deviations `d1`–`d5`, lapses `l1`–`l7` and
+  evidence `e1`–`e55` were approved on 2026-10-15, and `d2` is implemented.
+  **Owner:** operator.
 - t15 follow-ups (issue #4):
   - `reembed --apply` vs `serve`'s vector-space guard;
   - the `recording.merged` payload keys;

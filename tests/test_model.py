@@ -63,7 +63,14 @@ def test_hash_changes_with_content():
     segs = copy.deepcopy(r.segments)
     segs[0].text = "changed"
     assert content_hash(_rec(segments=segs)) != base
-    assert content_hash(_rec(raw={"x": 2})) != base
+
+
+def test_hash_ignores_raw_wire_payload():
+    # d2 (approved): raw is the adapter's copy of Pocket's wire response. A field Pocket adds
+    # or reorders there must not re-trigger embedding and a duplicate event.
+    base = content_hash(_rec())
+    assert content_hash(_rec(raw={"x": 2, "new_pocket_field": True})) == base
+    assert content_hash(_rec(raw={})) == base
 
 
 def test_hash_is_sha256_hex():

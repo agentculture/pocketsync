@@ -13,6 +13,10 @@ from typing import Any
 
 # Keys that change on every fetch and must never influence the content hash.
 VOLATILE_KEYS = frozenset({"fetched_at"})
+#: Top-level fields left out of the content hash (deviation d2). ``raw`` is the adapter's copy
+#: of Pocket's wire response; the hash covers the mapped content fields (including
+#: ``updated_at``), so wire-only changes do not re-embed or re-emit an event.
+HASH_EXCLUDED_FIELDS = frozenset({"raw"})
 
 
 @dataclass
@@ -152,9 +156,10 @@ def _strip_volatile(value: Any) -> Any:
 
 
 def canonical_json(rec: Recording) -> str:
-    """Canonical JSON of ``rec`` minus volatile keys: sorted keys, compact, UTF-8 friendly."""
+    """Canonical JSON of ``rec`` minus volatile keys and ``raw``: sorted keys, compact."""
+    content = {k: v for k, v in rec.to_dict().items() if k not in HASH_EXCLUDED_FIELDS}
     return json.dumps(
-        _strip_volatile(rec.to_dict()), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        _strip_volatile(content), sort_keys=True, separators=(",", ":"), ensure_ascii=False
     )
 
 
