@@ -1,0 +1,25 @@
+{
+  "plan_slug": "talk-to-recordings",
+  "schema_version": 2,
+  "created": "2026-10-16T12:46:49Z",
+  "updated": "2026-10-16T12:46:49Z",
+  "deviations": [
+    {
+      "id": "d1",
+      "what": "the main agent designs the pocketchat page (pocketsync/web/static/{index.html,app.css,app.js}) with the frontend-design skill and a web API contract doc while wave 2 runs; t11 implements the server/API to that contract and does not author the page",
+      "task_ref": "t11",
+      "reason": "user request: 'let's design, while agents work, that amazing chat experience' with the frontend-design and playwright plugins",
+      "affects": [
+        "c17",
+        "c34"
+      ],
+      "origin": "user",
+      "status": "approved",
+      "classification": "acceptable",
+      "seq": 1
+    }
+  ],
+  "evidence": [],
+  "deltas": [],
+  "supersessions": []
+}
