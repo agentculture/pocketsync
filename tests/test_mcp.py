@@ -178,12 +178,17 @@ def test_enrich_apply_true_commits(rt):
 
 def test_apply_on_a_read_tool_is_ignored(rt, monkeypatch):
     seen = []
+    real = verbs.Verb.invoke
 
-    def spy(runtime, arguments=None):
+    # Patch the class, not the registry instance: undoing an instance patch leaves the
+    # bound method behind on the instance and shadows later class-level spies.
+    def spy(self, runtime, arguments=None):
+        if self.name != "search":
+            return real(self, runtime, arguments)
         seen.append(dict(arguments or {}))
         return {"ok": True}
 
-    monkeypatch.setattr(verbs.get("search"), "invoke", spy)
+    monkeypatch.setattr(verbs.Verb, "invoke", spy)
     assert payload(call(rt, "search", {"query": "x", "apply": True})) == {"ok": True}
     assert seen == [{"query": "x"}]
 
@@ -324,6 +329,8 @@ def test_stdio_stdout_carries_only_protocol(tmp_path, argv):
             if line.strip() and json.loads(line).get("id") == 3:
                 break
         proc.stdin.close()
+        # Python 3.12's communicate() flushes stdin even when it is already closed; detach it.
+        proc.stdin = None
         rest, err = proc.communicate(timeout=30)
     finally:
         watchdog.cancel()

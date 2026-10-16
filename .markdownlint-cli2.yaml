@@ -16,6 +16,7 @@ config:
 
 ignores:
   - "node_modules/**"
+  - ".venv/**"
   - ".local/**"
   - ".afi/**"
   - ".teken/**"
