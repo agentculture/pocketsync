@@ -18,6 +18,7 @@ dependencies = []
 [project.optional-dependencies]
 mongo = ["pymongo>=4.6"]
 events = ["events-cli"]
+mcp = ["mcp>=1.2,<2"]
 
 [project.urls]
 Homepage = "https://github.com/agentculture/pocketsync"
@@ -47,6 +48,7 @@ dev = [
     "pymongo>=4.6",
     "mongomock>=4.1",
     "events-cli",
+    "mcp>=1.2,<2",
 ]
 
 [tool.coverage.run]
