@@ -136,6 +136,10 @@ def _dispatch(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:  # a real process: pick up hidden grant secrets the shell does not have
+        from pocketsync.cli._grant import maybe_reexec
+
+        maybe_reexec(sys.argv[1:])
     # Pre-parse peek so argparse-level errors honour --json.
     _CliArgumentParser._json_hint = _argv_has_json(argv)
     parser = _build_parser()

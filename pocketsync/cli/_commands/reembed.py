@@ -16,7 +16,11 @@ from pocketsync.cli import _runtime
 from pocketsync.cli._commands._common import add_apply, add_json, json_mode
 from pocketsync.cli._output import emit_result
 from pocketsync.enrich.gateway import EMBED_DIMS, EMBED_MODEL
-from pocketsync.sinks.mongo import ENRICHMENT_PENDING, PATH_ENRICHMENT_STATUS
+from pocketsync.sinks.mongo import (
+    ENRICHMENT_PENDING,
+    PATH_ENRICHMENT_ATTEMPTS,
+    PATH_ENRICHMENT_STATUS,
+)
 
 
 def cmd_reembed(args: argparse.Namespace) -> None:
@@ -27,7 +31,8 @@ def cmd_reembed(args: argparse.Namespace) -> None:
     updated = 0
     if args.apply and ids:
         res = collection.update_many(
-            {"_id": {"$in": ids}}, {"$set": {PATH_ENRICHMENT_STATUS: ENRICHMENT_PENDING}}
+            {"_id": {"$in": ids}},
+            {"$set": {PATH_ENRICHMENT_STATUS: ENRICHMENT_PENDING, PATH_ENRICHMENT_ATTEMPTS: 0}},
         )
         updated = int(res.modified_count)
     result = {

@@ -9,8 +9,13 @@ Decisions (documented, see the plan's c26/h23/c48/h31/c44):
   time and failure count live **in memory** (per worker instance): exponential
   (``backoff_base * 2**(n-1)``, capped at ``backoff_max``), or the gateway's numeric
   ``Retry-After`` when given. A restarted worker simply retries immediately; that is safe
-  because the doc never left ``pending``. Any other :class:`CliError` is non-retryable and is
-  recorded with ``set_enrichment_error`` (status ``error``).
+  because the doc never left ``pending``. Any other :class:`CliError` (for example invalid
+  JSON or a wrong vector size from a gateway that is restarting) is recorded with
+  ``set_enrichment_error`` (status ``error``). It is **retried automatically** on a persisted,
+  wall-clock schedule (``enrichment.next_attempt_at``): ``ERROR_RETRY_BASE * 2**(n-1)``,
+  capped at ``ERROR_RETRY_MAX``, until ``MAX_ENRICHMENT_ATTEMPTS``. After that it stays
+  ``error`` and ``status``/``doctor`` report it as failed, so no outage strands a recording
+  silently.
 * **Stale results.** If the CAS misses, content changed mid-flight: the result is dropped, no
   event is appended, and the doc is already ``pending`` again from the content write.
 * **One event per content hash.** The outbox dedupes on ``(recording_id, content_hash)``, so a
@@ -39,10 +44,17 @@ from pocketsync.events import Outbox
 from pocketsync.sinks.mongo import (
     ENRICHMENT_DONE,
     ENRICHMENT_PENDING,
+    MAX_ENRICHMENT_ATTEMPTS,
+    PATH_ENRICHMENT_ATTEMPTS,
     PATH_ENRICHMENT_STATUS,
     MongoSink,
 )
 
+#: Automatic retry of a failed (``error``) doc: ``ERROR_RETRY_BASE * 2**(attempts-1)`` seconds,
+#: capped at ``ERROR_RETRY_MAX``, until ``MAX_ENRICHMENT_ATTEMPTS`` (then terminal). Wall clock,
+#: persisted on the doc, so the schedule survives a restart of ``serve``.
+ERROR_RETRY_BASE = 60.0
+ERROR_RETRY_MAX = 6 * 3600.0
 DEFAULT_CONCURRENCY = 2
 DEFAULT_BATCH = 10
 CLASSIFY_MAX_CHARS = 6000
@@ -64,7 +76,7 @@ def mark_for_reclassification(store: MongoSink, current_taxonomy_version: str) -
             PATH_ENRICHMENT_STATUS: ENRICHMENT_DONE,
             PATH_TAXONOMY_VERSION: {"$exists": True, "$ne": current_taxonomy_version},
         },
-        {"$set": {PATH_ENRICHMENT_STATUS: ENRICHMENT_PENDING}},
+        {"$set": {PATH_ENRICHMENT_STATUS: ENRICHMENT_PENDING, PATH_ENRICHMENT_ATTEMPTS: 0}},
     )
     return int(res.modified_count)
 
@@ -90,6 +102,7 @@ class EnrichmentWorker:
         backoff_max: float = 300.0,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
+        wall_clock: Callable[[], float] = time.time,
     ) -> None:
         if concurrency < 1:
             raise ValueError("concurrency must be >= 1")
@@ -102,6 +115,7 @@ class EnrichmentWorker:
         self.backoff_max = backoff_max
         self._clock = clock
         self._sleep = sleep
+        self._wall = wall_clock
         self._lock = threading.Lock()  # guards _retry and outbox appends
         self._retry: dict[str, tuple[float, int]] = {}  # id -> (next_attempt, failures)
 
@@ -118,6 +132,13 @@ class EnrichmentWorker:
             if ra is not None and ra >= 0:
                 delay = ra
             self._retry[rid] = (self._clock() + delay, failures)
+
+    def _next_attempt(self, d: dict[str, Any]) -> float | None:
+        """When to retry a doc that just failed; None once the attempt cap is reached."""
+        attempts = int((d.get("enrichment") or {}).get("attempts") or 0) + 1
+        if attempts >= MAX_ENRICHMENT_ATTEMPTS:
+            return None
+        return self._wall() + min(ERROR_RETRY_BASE * 2 ** (attempts - 1), ERROR_RETRY_MAX)
 
     def _due(self, rid: str) -> bool:
         with self._lock:
@@ -172,7 +193,7 @@ class EnrichmentWorker:
             self._defer(rid, exc)
             return "unavailable"
         except CliError as exc:
-            self.store.set_enrichment_error(rid, chash, exc.message)
+            self.store.set_enrichment_error(rid, chash, exc.message, self._next_attempt(d))
             return "errors"
         if not self.store.set_enrichment(rid, chash, payload):
             return "stale"
@@ -195,7 +216,7 @@ class EnrichmentWorker:
         """Process up to ``batch`` due pending docs, at most ``concurrency`` at a time."""
         stats = dict.fromkeys(("done", "stale", "unavailable", "errors", "deferred"), 0)
         # Over-fetch so backed-off docs at the head of the queue don't starve the rest.
-        picked = self.store.pending_enrichment(self.batch + len(self._retry))
+        picked = self.store.pending_enrichment(self.batch + len(self._retry), now=self._wall())
         todo = []
         for d in picked:
             if not self._due(d["_id"]):

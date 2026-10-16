@@ -297,7 +297,7 @@ def _webhook_check(rt: Any, state: Any, now: datetime) -> dict[str, Any]:
 
 
 def _health_checks(state: Any, collection: Any, now: datetime) -> list[dict[str, Any]]:
-    from pocketsync.cli._commands.status import enrichment_backlog
+    from pocketsync.cli._commands.status import enrichment_backlog, enrichment_errors
 
     out = []
     missed = int(state.counters().get(COUNTER_WEBHOOK_MISSED, 0))
@@ -316,6 +316,17 @@ def _health_checks(state: Any, collection: Any, now: datetime) -> list[dict[str,
             "warn" if backlog > BACKLOG_WARN else "ok",
             f"{backlog} recording(s) pending enrichment",
             "check the gateway (gateway_reachability) and that serve is running",
+        )
+    )
+    retrying, failed = enrichment_errors(collection)
+    out.append(
+        _check(
+            "enrichment_failed",
+            "warn" if failed else "ok",
+            f"{failed} recording(s) failed enrichment past the retry cap; "
+            f"{retrying} retrying automatically",
+            "fix the cause (see 'pocketsync status' errors); a content change in Pocket re-queues "
+            "a recording, and an on-demand re-queue command is planned (issue #8)",
         )
     )
     cutoff = now - timedelta(hours=RECENT_ERROR_HOURS)

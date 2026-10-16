@@ -128,3 +128,34 @@ def test_reembed_text_dry_run(rt, capsys):
     out = capsys.readouterr().out
     assert "r0001" in out
     assert "--apply" in out
+
+
+def test_status_and_doctor_report_retrying_and_failed_enrichment(rt, capsys):
+    from pocketsync.sinks.mongo import MAX_ENRICHMENT_ATTEMPTS
+
+    for rid in ("r0001", "r0002", "r0003"):
+        land(rid, rt.pocket, files_sink=rt.files, store_sink=rt.store)
+    col = rt.store.collection
+    col.update_one(
+        {"_id": "r0001"},
+        {
+            "$set": {
+                "enrichment.status": "error",
+                "enrichment.attempts": 2,
+                "enrichment.next_attempt_at": 1.0,
+            }
+        },
+    )
+    col.update_one(
+        {"_id": "r0002"},
+        {"$set": {"enrichment.status": "error", "enrichment.attempts": MAX_ENRICHMENT_ATTEMPTS}},
+    )
+    assert main(["status", "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["enrichment_backlog"] == 1
+    assert out["enrichment_retrying"] == 1
+    assert out["enrichment_failed"] == 1
+    assert main(["status"]) == 0
+    text = capsys.readouterr().out
+    assert "enrichment retrying" in text
+    assert "enrichment failed" in text

@@ -127,6 +127,23 @@ clip) and confirm `last_webhook_at` moves and the recording appears in
 `401`, a zone WAF or Bot Fight rule is intercepting (plan risk r5): add a skip
 rule scoped to that exact path.
 
+## Day to day and upgrades
+
+- Runtime verbs pick up the hidden grant secrets on their own (same-named
+  secrets, see the README's CLI section), so `pocketsync status` and
+  `pocketsync doctor` work from a plain shell.
+- **Upgrade from a checkout with `--reinstall`.** uv caches a local build by
+  version and `pyproject.toml`, so `--force` alone silently reinstalls the old
+  code whenever the version has not changed:
+
+  ```bash
+  uv tool install --force --reinstall '.[mongo,events]'
+  systemctl --user restart pocketsync-serve
+  ```
+
+  The first pass after the restart catches up automatically: downtime through
+  the watermark window, and a `LANDING_SCHEMA` bump re-lands everything once.
+
 ## Rollback
 
 - `systemctl --user disable --now pocketsync-serve cloudflared-pocketsync`

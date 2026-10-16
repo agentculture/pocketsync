@@ -37,6 +37,8 @@ _SETTING_NAMES = (
 )
 ENV_VARS = {name: f"POCKETSYNC_{name.upper()}" for name in _SETTING_NAMES}
 CONFIG_PATH_ENV = "POCKETSYNC_CONFIG"
+#: Settings that are secrets (``repr=False`` on :class:`Settings`; injected from grant).
+SECRET_SETTINGS = ("api_key", "webhook_secret", "gateway_api_key", "mongo_uri")
 _INT_FIELDS = {"webhook_port", "reconcile_interval", "enrichment_concurrency"}
 
 

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-10-16
+
+### Added
+
+- Runtime verbs (auth, list, sync, watch, serve, status, reembed, doctor) re-run under `grant run --inject` when a secret setting is unset and the grant store holds a same-named secret, so a bare `pocketsync status` works with hidden secrets; `POCKETSYNC_NO_GRANT=1` opts out
+- Enrichment self-heals after gateway outages: an `error` doc is retried automatically on a persisted backoff (1 min doubling to 6 h, 10 attempts); `status` reports `enrichment_retrying`/`enrichment_failed` and `doctor` warns on failed
+
+### Changed
+
+- Runbook: upgrade from a checkout with `uv tool install --force --reinstall` (a same-version `--force` reuses the cached build)
+
 ## [0.11.0] - 2026-10-15
 
 ### Added

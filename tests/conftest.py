@@ -11,8 +11,13 @@ any packet is sent or any DNS lookup is attempted. Opt-in integration tests
 from __future__ import annotations
 
 import ipaddress
+import os
 import socket
 from typing import Any
+
+# Never re-exec into the operator's real grant store from a test (in-process main() or a
+# `python -m pocketsync` child): see pocketsync/cli/_grant.py.
+os.environ["POCKETSYNC_NO_GRANT"] = "1"
 
 _REAL_CONNECT = socket.socket.connect
 _REAL_CONNECT_EX = socket.socket.connect_ex

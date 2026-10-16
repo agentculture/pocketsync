@@ -81,6 +81,14 @@ Service bar automated access "for unauthorized purposes". See the spec in
 Write verbs are dry-run by default and commit only with `--apply`. Every verb
 takes `--json`.
 
+Secrets come from the environment, and only from the environment. If a runtime
+verb (`auth`, `list`, `sync`, `watch`, `serve`, `status`, `reembed`, `doctor`)
+finds one unset, and the operator's `grant` store has a secret of exactly that
+name, for example `POCKETSYNC_MONGO_URI`, `pocketsync` re-runs itself under
+`grant run --inject`. So a bare `pocketsync status` works on the serving host
+even though the secrets are hidden. Set `POCKETSYNC_NO_GRANT=1` to turn this
+off.
+
 | Verb | What it does |
 |------|-----------------|
 | `pocketsync auth` | Verify the Pocket API key with one list call. |
@@ -156,6 +164,14 @@ Behavior consumers can rely on:
   field, so a stale vector never describes new content.
 - Enrichment is written compare-and-set on `content_hash`: a result computed
   from superseded content is dropped.
+- Enrichment heals itself after a gateway outage.
+  - A lane that is down or loading (404, 429, 5xx, unreachable) keeps the
+    recording `pending`; it is retried with backoff.
+  - Any other failure marks it `error`, with `attempts` and
+    `next_attempt_at`, and it is retried automatically from 1 minute up to
+    every 6 hours.
+  - After 10 failures it stays `error`. `pocketsync status` counts
+    `enrichment_retrying` and `enrichment_failed`, and `doctor` warns.
 - Deleted and merged recordings are tombstoned or marked, never purged.
   Filter on `deleted_in_pocket` and `merged_into` when querying.
 - Mongo stores file references only, never audio bytes.
