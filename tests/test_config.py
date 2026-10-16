@@ -99,3 +99,39 @@ def test_secret_not_in_error_message():
     with pytest.raises(CliError) as e:
         s.require("api_key", "webhook_secret")
     assert "synthetic-api-value" not in e.value.message + e.value.remediation
+
+
+def test_talk_settings_defaults():
+    s = load(env={})
+    assert s.chat_model == "unsloth/Qwen3.8-27B-NVFP4"
+    assert s.web_port == 8788
+    assert s.access_team_domain is None
+    assert s.access_aud is None
+    assert s.site_origin == "https://pocketchat.culture.dev"
+
+
+def test_talk_settings_env_override():
+    s = load(
+        env={
+            "POCKETSYNC_CHAT_MODEL": "m/x",
+            "POCKETSYNC_WEB_PORT": "9000",
+            "POCKETSYNC_ACCESS_TEAM_DOMAIN": "team.example.test",
+            "POCKETSYNC_ACCESS_AUD": "aud123",
+            "POCKETSYNC_SITE_ORIGIN": "http://localhost:1",
+        }
+    )
+    assert (s.chat_model, s.web_port) == ("m/x", 9000)
+    assert s.access_team_domain == "team.example.test"
+    assert s.access_aud == "aud123"
+    assert s.site_origin == "http://localhost:1"
+
+
+def test_web_port_must_be_int():
+    with pytest.raises(CliError):
+        load(env={"POCKETSYNC_WEB_PORT": "abc"})
+
+
+def test_secret_settings_unchanged():
+    from pocketsync.config import SECRET_SETTINGS
+
+    assert SECRET_SETTINGS == ("api_key", "webhook_secret", "gateway_api_key", "mongo_uri")
