@@ -1,6 +1,6 @@
 [project]
 name = "pocketsync"
-version = "0.11.0"
+version = "0.11.1"
 description = "Sync Pocket voice-recorder recordings, transcripts (STT) and summaries from the Pocket cloud to local disk or S3 - a durable landing zone that culture-rules workflows fan out to anywhere."
 readme = "README.md"
 license = "Apache-2.0"
