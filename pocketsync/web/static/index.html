@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>pocketchat</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+  <script type="module" src="/static/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="bar">
+    <a class="brand" href="#ask" aria-label="pocketchat home">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="2" y="10" width="20" height="4" rx="2"></rect>
+        <rect x="9" y="10" width="6" height="4" class="brand-mark-hit"></rect>
+      </svg>
+      <span>pocketchat</span>
+    </a>
+    <nav class="views" aria-label="Views">
+      <a href="#ask" data-view="ask">Ask</a>
+      <a href="#recordings" data-view="recordings">Recordings</a>
+      <a href="#todos" data-view="todos">To-dos</a>
+    </nav>
+    <p class="health" id="health" role="status" aria-live="polite">
+      <span class="health-dot" aria-hidden="true"></span><span class="health-text">Connecting</span>
+    </p>
+  </header>
+
+  <div class="shell">
+    <main id="main" class="main" tabindex="-1">
+      <!-- Ask -->
+      <section class="view" id="view-ask" aria-labelledby="ask-title">
+        <h1 class="sr-only" id="ask-title">Ask your recordings</h1>
+        <ol class="thread" id="thread" aria-live="polite"></ol>
+
+        <div class="empty" id="ask-empty">
+          <p class="empty-lead">Ask about anything you've recorded.</p>
+          <p class="empty-sub">Answers quote your recordings and link to the exact moment.</p>
+          <div class="suggestions" id="suggestions">
+            <button type="button" class="suggestion">What did I commit to this week?</button>
+            <button type="button" class="suggestion">Summarize my last meeting</button>
+            <button type="button" class="suggestion">Who brought up the budget, and what did they say?</button>
+          </div>
+          <div class="recent" id="recent" hidden>
+            <h2 class="recent-head">Recently recorded</h2>
+            <ul class="recent-list" id="recent-list"></ul>
+          </div>
+        </div>
+
+        <form class="composer" id="composer" autocomplete="off">
+          <div class="scope" role="group" aria-label="Search scope">
+            <label class="scope-item">
+              <span class="sr-only">Time range</span>
+              <select id="scope-range">
+                <option value="">Any time</option>
+                <option value="7">Past week</option>
+                <option value="30">Past month</option>
+                <option value="90">Past 3 months</option>
+              </select>
+            </label>
+            <label class="scope-item">
+              <span class="sr-only">Label</span>
+              <select id="scope-label">
+                <option value="">All kinds</option>
+              </select>
+            </label>
+            <label class="scope-item scope-toggle">
+              <input type="checkbox" id="scope-sensitive">
+              <span>Hide sensitive</span>
+            </label>
+          </div>
+          <div class="ask-row">
+            <label for="question" class="sr-only">Question</label>
+            <textarea id="question" rows="1" placeholder="Ask your recordings" required></textarea>
+            <button type="submit" class="ask-send" id="ask-send">Ask</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Recordings -->
+      <section class="view" id="view-recordings" aria-labelledby="rec-title" hidden>
+        <div class="view-head">
+          <h1 id="rec-title">Recordings</h1>
+          <div class="chips" id="rec-labels" role="group" aria-label="Filter by label"></div>
+        </div>
+        <div id="rec-list" class="days"></div>
+      </section>
+
+      <!-- To-dos -->
+      <section class="view" id="view-todos" aria-labelledby="todo-title" hidden>
+        <div class="view-head">
+          <h1 id="todo-title">To-dos</h1>
+          <label class="scope-toggle">
+            <input type="checkbox" id="todo-done">
+            <span>Show done</span>
+          </label>
+        </div>
+        <div id="todo-list" class="todos"></div>
+      </section>
+    </main>
+
+    <!-- Reader -->
+    <aside class="reader" id="reader" aria-labelledby="reader-title" hidden>
+      <div class="reader-head">
+        <button type="button" class="reader-close" id="reader-close" aria-label="Close recording">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+        </button>
+        <h2 id="reader-title" class="reader-title"></h2>
+        <p class="reader-meta" id="reader-meta"></p>
+        <div class="tape tape-large" id="reader-tape" aria-hidden="true" title="Jump to a moment"></div>
+        <p class="tape-legend" id="reader-legend"></p>
+        <div class="reader-actions">
+          <div class="chips" id="reader-labels"></div>
+          <button type="button" class="quiet-button" id="enrich-open" aria-expanded="false" aria-controls="enrich-panel">Re-enrich</button>
+        </div>
+        <div class="enrich" id="enrich-panel" hidden>
+          <fieldset>
+            <legend>Re-run enrichment for this recording</legend>
+            <label><input type="radio" name="enrich-only" value="all" checked> Labels and search vectors</label>
+            <label><input type="radio" name="enrich-only" value="classify"> Labels only</label>
+            <label><input type="radio" name="enrich-only" value="embed"> Search vectors only</label>
+          </fieldset>
+          <p class="enrich-preview" id="enrich-preview" aria-live="polite"></p>
+          <div class="enrich-buttons">
+            <button type="button" class="quiet-button" id="enrich-preview-btn">Preview</button>
+            <button type="button" class="primary-button" id="enrich-apply" disabled>Re-enrich now</button>
+          </div>
+        </div>
+      </div>
+      <div class="reader-body" id="reader-body">
+        <section class="reader-summary" id="reader-summary" aria-label="Summary"></section>
+        <section class="reader-actions-list" id="reader-todos" aria-label="Action items"></section>
+        <section aria-label="Transcript">
+          <h3 class="reader-section">Transcript</h3>
+          <ol class="transcript" id="transcript"></ol>
+        </section>
+      </div>
+    </aside>
+  </div>
+</body>
+</html>

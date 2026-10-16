@@ -246,3 +246,4 @@ skills.local.yaml
 
 # pocketsync-mongo credentials (the committed template is .env.example)
 deploy/mongo/.env
+.playwright-mcp/

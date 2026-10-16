@@ -4,7 +4,7 @@
   "schema_version": 6,
   "status": "exported",
   "created": "2026-10-16T12:11:33Z",
-  "updated": "2026-10-16T12:31:12Z",
+  "updated": "2026-10-16T12:52:05Z",
   "claims": [
     {
       "id": "c1",
@@ -1014,6 +1014,17 @@
       "skipped_check": "TDD red step",
       "refs": [
         "t1"
+      ],
+      "origin": "llm",
+      "status": "proposed"
+    },
+    {
+      "id": "l2",
+      "code": "control-absent",
+      "what": "t10 task agent wrote tests/test_mcp.py and the parity MCP half before the implementation without running them red (one parametrize bug caught only by test count)",
+      "skipped_check": "TDD red step",
+      "refs": [
+        "t10"
       ],
       "origin": "llm",
       "status": "proposed"
