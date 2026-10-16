@@ -4,7 +4,7 @@
   "schema_version": 6,
   "status": "exported",
   "created": "2026-10-16T12:11:33Z",
-  "updated": "2026-10-16T12:25:39Z",
+  "updated": "2026-10-16T12:31:12Z",
   "claims": [
     {
       "id": "c1",
@@ -1006,7 +1006,19 @@
       ]
     }
   ],
-  "lapses": [],
+  "lapses": [
+    {
+      "id": "l1",
+      "code": "control-absent",
+      "what": "t1 task agent wrote tests and implementation together; the new tests were never observed failing first",
+      "skipped_check": "TDD red step",
+      "refs": [
+        "t1"
+      ],
+      "origin": "llm",
+      "status": "proposed"
+    }
+  ],
   "obligations": [
     {
       "id": "o1",
