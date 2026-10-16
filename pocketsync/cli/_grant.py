@@ -33,7 +33,26 @@ SECRET_ENV = tuple(ENV_VARS[name] for name in SECRET_SETTINGS)
 REEXEC_MARK = "POCKETSYNC_VIA_GRANT"
 OPT_OUT = "POCKETSYNC_NO_GRANT"
 #: Verbs that build a runtime (and so may need secrets). Introspection verbs never do.
-RUNTIME_VERBS = frozenset({"auth", "list", "sync", "watch", "serve", "status", "reembed", "doctor"})
+RUNTIME_VERBS = frozenset(
+    {
+        "auth",
+        "list",
+        "sync",
+        "watch",
+        "serve",
+        "status",
+        "reembed",
+        "doctor",
+        "enrich",
+        "search",
+        "get",
+        "transcript",
+        "recordings",
+        "actions",
+        "mcp",
+        "web",
+    }
+)
 
 
 def _verb(argv: list[str]) -> str | None:

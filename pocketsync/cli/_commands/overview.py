@@ -38,6 +38,16 @@ _VERBS = [
     "serve [--port P] — webhook receiver + landing + reconciler + enrichment in one process",
     "status — watermark, last run, webhook health, enrichment backlog, last errors",
     "reembed [--apply] — queue recordings embedded with another model (dry run unless --apply)",
+    "enrich [--all|--since|--until|--id|--label|--status] [--only MODE] [--apply] — re-queue "
+    "a selection for enrichment (dry run unless --apply)",
+    "search <query> [--label L] [--since D] [--exclude-sensitive] [--limit N] — semantic "
+    "search over stored recordings (keyword fallback)",
+    "get <id> — one stored recording: metadata, summary, action items, labels",
+    "transcript <id> [--start S] [--end S] — speaker-attributed transcript segments",
+    "recordings [--since D] [--label L] [--limit N] — stored recordings, newest first",
+    "actions [--no-open-only] [--limit N] — action items across stored recordings",
+    "mcp — the same verbs as MCP tools over stdio (pocketsync[mcp] extra)",
+    "web [--port P] [--no-access-check] — private chat site over the same verbs (loopback)",
 ]
 
 
@@ -70,7 +80,7 @@ def cli_sections() -> list[dict[str, object]]:
             "title": "Conventions",
             "items": [
                 "every command supports --json",
-                "write verbs (sync, reembed) are dry runs unless --apply",
+                "write verbs (sync, reembed, enrich) are dry runs unless --apply",
                 "results to stdout, errors/diagnostics to stderr (never mixed)",
                 "exit codes: 0 success, 1 user error, 2 environment error, 3+ reserved",
             ],

@@ -1,4 +1,4 @@
-"""Factory seam: build the Pocket source, sinks, state, gateway and outbox from Settings.
+"""Factory seam: build the Pocket source, sinks, state, gateway lanes and outbox from Settings.
 
 Every operational verb gets its collaborators from :func:`build` (via :func:`get`), never by
 constructing clients itself. Tests monkeypatch :data:`build` (or hand a ready
@@ -155,6 +155,29 @@ class Runtime:
             )
 
         return self._once("gateway", make)
+
+    def chat(self) -> Any:
+        """The gateway client for the chat lane (model from ``POCKETSYNC_CHAT_MODEL``)."""
+
+        def make() -> Any:
+            from pocketsync.enrich.gateway import GatewayClient
+
+            return GatewayClient(
+                self.settings.gateway_url,
+                self.settings.gateway_api_key,
+                self.taxonomy(),
+                chat_model=self.settings.chat_model,
+            )
+
+        return self._once("chat", make)
+
+    def search_fn(self) -> Any:
+        """The ``$vectorSearch`` seam for :func:`pocketsync.recall.search.search`.
+
+        None means the default (``collection.aggregate``); tests return a fake, because
+        mongomock cannot run ``$vectorSearch``.
+        """
+        return None
 
     def gateway_probe(self) -> dict[str, Any]:
         """``GET /capabilities`` on the gateway; return the parsed JSON (raises on failure)."""
