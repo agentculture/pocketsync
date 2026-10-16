@@ -182,3 +182,36 @@ def test_clean_store_passes():
 def test_import_without_pymongo():
     code = "import sys; sys.modules['pymongo']=None; import pocketsync.vindex"
     assert subprocess.run([sys.executable, "-c", code]).returncode == 0
+
+
+class NoUpdateStub(Stub):
+    """atlas-local (mongot 1.77) rejects updateSearchIndex for vectorSearch indexes."""
+
+    def __init__(self, docs=()):
+        super().__init__(docs)
+        self.dropped = []
+
+    def update_search_index(self, name, definition):
+        raise RuntimeError('"mappings" is required')
+
+    def drop_search_index(self, name):
+        self.dropped.append(name)
+        self.indexes = [i for i in self.indexes if i["name"] != name]
+
+
+def test_stale_index_is_recreated_when_in_place_update_is_rejected():
+    col = NoUpdateStub()
+    stale = {
+        "fields": [
+            f for f in vindex.summary_definition(4)["fields"] if f["path"] != vindex.PATH_SENSITIVE
+        ]
+    }
+    col.indexes = [
+        {"name": vindex.SUMMARY_INDEX, "latestDefinition": stale},
+        {"name": vindex.CHUNK_INDEX, "latestDefinition": vindex.chunk_definition(4)},
+    ]
+    vindex.ensure_index(col, "m", 4, sleep=lambda s: None)
+    assert col.dropped == [vindex.SUMMARY_INDEX]
+    assert [m["name"] for m in col.created] == [vindex.SUMMARY_INDEX]
+    summary = next(i for i in col.indexes if i["name"] == vindex.SUMMARY_INDEX)
+    assert vindex.PATH_SENSITIVE in {f["path"] for f in summary["latestDefinition"]["fields"]}

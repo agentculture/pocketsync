@@ -262,3 +262,22 @@ def test_recall_search_filters_on_real_vector_search(sink: MongoSink) -> None:
     assert {r["id"] for r in run(exclude_sensitive=True)["results"]} == {"it-7"}
     assert {r["id"] for r in run(since="2026-10-11")["results"]} == {"it-7"}
     assert {r["id"] for r in run(until="2026-10-10")["results"]} == {"it-4"}
+
+
+def test_stale_vector_index_gains_new_filter_fields(sink):
+    # atlas-local rejects updateSearchIndex for vectorSearch; ensure_index re-creates instead.
+    from pymongo.operations import SearchIndexModel
+
+    col = sink.collection.database["stale_index_probe"]
+    col.insert_one({"_id": "p1"})
+    stale = vindex.summary_definition(DIMS)
+    stale["fields"] = [f for f in stale["fields"] if f["path"] != vindex.PATH_SENSITIVE]
+    col.create_search_index(
+        SearchIndexModel(definition=stale, name=vindex.SUMMARY_INDEX, type="vectorSearch")
+    )
+    _wait_queryable(col, vindex.SUMMARY_INDEX)
+    vindex.ensure_index(col, MODEL, DIMS)
+    _wait_queryable(col, vindex.SUMMARY_INDEX)
+    (idx,) = list(col.list_search_indexes(vindex.SUMMARY_INDEX))
+    paths = {f["path"] for f in idx["latestDefinition"]["fields"]}
+    assert vindex.PATH_SENSITIVE in paths

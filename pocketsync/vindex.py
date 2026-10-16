@@ -30,7 +30,8 @@ so the module imports with pymongo absent. Callers supply the pymongo collection
 
 from __future__ import annotations
 
-from typing import Any
+import time
+from typing import Any, Callable
 
 from pocketsync.cli._errors import EXIT_USER_ERROR, CliError
 
@@ -51,6 +52,7 @@ PATH_CHUNK_VECTOR = "enrichment.chunks.vector"
 
 SUMMARY_INDEX = "recordings_summary_vec"
 CHUNK_INDEX = "recordings_chunk_vec"
+RECREATE_WAIT_STEPS = 60
 SIMILARITY = "cosine"
 FILTER_PATHS = (
     PATH_LABELS,
@@ -146,12 +148,27 @@ def reembed_plan(collection: Any, model: str, dims: int) -> list[Any]:
     return [d["_id"] for d in collection.find(_mismatch(model, dims), {"_id": 1})]
 
 
-def ensure_index(collection: Any, model: str, dims: int) -> list[str]:
+def _recreate(collection: Any, spec: dict[str, Any], sleep: Callable[[float], None]) -> None:
+    """Drop and re-create one index (atlas-local cannot update a vectorSearch index in place)."""
+    collection.drop_search_index(spec["name"])
+    for _ in range(RECREATE_WAIT_STEPS):
+        if spec["name"] not in _existing(collection):
+            break
+        sleep(0.5)
+    collection.create_search_index(spec)
+
+
+def ensure_index(
+    collection: Any, model: str, dims: int, *, sleep: Callable[[float], None] = time.sleep
+) -> list[str]:
     """Idempotently create both vector indexes; return the names created this call.
 
     A present index whose filter fields differ from the wanted ones (order-insensitive)
     is updated in place via ``update_search_index``; those names are not in the result.
-    :func:`check` stays dims/model-only, so filter drift never blocks startup.
+    atlas-local (mongot 1.77) rejects that for vectorSearch indexes (``"mappings" is
+    required``), so on any update failure the index is dropped and re-created instead; vector
+    search is unavailable for that index until it is queryable again (seconds on a small
+    store). :func:`check` stays dims/model-only, so filter drift never blocks startup.
     """
     check(collection, model, dims)
     present = _existing(collection)
@@ -161,7 +178,10 @@ def ensure_index(collection: Any, model: str, dims: int) -> list[str]:
             collection.create_search_index(spec)
             created.append(spec["name"])
         elif _index_filters(present[spec["name"]]) != set(FILTER_PATHS):
-            collection.update_search_index(spec["name"], spec["definition"])
+            try:
+                collection.update_search_index(spec["name"], spec["definition"])
+            except Exception:  # noqa: BLE001 - any refusal falls back to drop + re-create
+                _recreate(collection, spec, sleep)
     collection.database[META_COLLECTION].replace_one(
         {"_id": META_ID}, {"_id": META_ID, "model": model, "dims": dims}, upsert=True
     )
