@@ -40,9 +40,11 @@ The page has no inline script or style and loads nothing from another origin.
 
   | Status | Codes |
   |--------|-------|
-  | 400 | `bad_request` (a `CliError` with exit 1 from a verb) |
+  | 400 | `bad_request` (a `CliError` with exit 1 from a verb, bad JSON, missing length) |
   | 403 | `forbidden` (Access JWT, Origin or Content-Type check failed) |
   | 404 | `not_found` |
+  | 405 | `method_not_allowed` |
+  | 413 | `too_large` (request body over 64 KiB) |
   | 503 | `unavailable` (JWKS, Mongo or a gateway lane down), `chat_unavailable` |
   | 500 | `internal` (never carries a traceback) |
 
@@ -97,7 +99,9 @@ This is the `actions` verb.
 
 ### `POST /api/search`
 
-The request body follows the `search` verb's schema:
+The request body follows the `search` verb's schema. Repeatable verb parameters may be
+sent singular or plural (`label` or `labels`, `id` or `ids`); sending both spellings is a
+`400`.
 
 ```json
 {"query": "pricing decision", "labels": ["meeting"], "since": "2026-10-01", "limit": 10}
@@ -148,8 +152,9 @@ The response:
   `{"answer": "", "citations": [], "retrieval": {"mode": ..., "count": 0}}`,
   and the page says nothing matched.
 - When the chat lane is down, the response is a `503` with code
-  `chat_unavailable`. The body still includes `citations` (all retrieved
-  sources, unnumbered order) so the page can show what it found.
+  `chat_unavailable`. The body still includes `citations` (every retrieved
+  source, numbered in retrieval order, not a cited subset) and `retrieval`, so
+  the page can show what it found.
 
 ### `POST /api/enrich`
 

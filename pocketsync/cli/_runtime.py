@@ -13,6 +13,7 @@ client constructors; nothing here prints or logs them.
 from __future__ import annotations
 
 import json
+import threading
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -47,11 +48,15 @@ class Runtime:
     def __init__(self, settings: config.Settings | None = None) -> None:
         self.settings = settings if settings is not None else config.load()
         self._cache: dict[str, Any] = {}
+        # Re-entrant: one accessor builds another (store_sink -> database), and the threaded
+        # web server can hit the same accessor from two requests at once.
+        self._lock = threading.RLock()
 
     def _once(self, key: str, make: Callable[[], Any]) -> Any:
-        if key not in self._cache:
-            self._cache[key] = make()
-        return self._cache[key]
+        with self._lock:
+            if key not in self._cache:
+                self._cache[key] = make()
+            return self._cache[key]
 
     # -- paths ---------------------------------------------------------------------------
 
