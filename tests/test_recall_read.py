@@ -148,7 +148,8 @@ def test_list_action_items(col) -> None:
     out = list_action_items(col)
     assert out["count"] == 6
     texts = [a["text"] for a in out["action_items"]]
-    assert "del open task" not in texts and "mrg open task" not in texts
+    assert "del open task" not in texts
+    assert "mrg open task" not in texts
     first = out["action_items"][0]
     assert first == {
         "recording_id": "c",

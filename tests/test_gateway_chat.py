@@ -67,8 +67,10 @@ def test_chat_request_shape(client):
     assert body["messages"] == MSGS
     assert body["max_tokens"] == 50
     assert body["chat_template_kwargs"] == {"enable_thinking": False}
-    assert "tools" not in body and "functions" not in body
-    assert "tool_choice" not in body and "function_call" not in body
+    assert "tools" not in body
+    assert "functions" not in body
+    assert "tool_choice" not in body
+    assert "function_call" not in body
 
 
 def test_chat_model_override(client):
@@ -93,18 +95,19 @@ def test_chat_model_constructor():
         ("</think>\nAnswer after stray close", "Answer after stray close"),
     ],
 )
-def test_chat_strips_think(client, raw, expected):
-    FakeChat.content = raw
+def test_chat_strips_think(client, raw, expected, monkeypatch):
+    monkeypatch.setattr(FakeChat, "content", raw)
     assert client.chat(MSGS) == expected
 
 
 @pytest.mark.parametrize("status", [404, 429, 500, 502, 503, 504])
-def test_chat_unavailable(client, status):
-    FakeChat.status = status
+def test_chat_unavailable(client, status, monkeypatch):
+    monkeypatch.setattr(FakeChat, "status", status)
     with pytest.raises(EnrichmentUnavailable):
         client.chat(MSGS)
 
 
 def test_chat_unreachable():
+    unreachable = GatewayClient("http://127.0.0.1:1/v1", timeout=1)
     with pytest.raises(EnrichmentUnavailable):
-        GatewayClient("http://127.0.0.1:1/v1", timeout=1).chat(MSGS)
+        unreachable.chat(MSGS)

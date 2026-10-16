@@ -186,28 +186,30 @@ def rt(tmp_path, monkeypatch):
 def test_invoke_rejects_unknown_and_missing_arguments(rt):
     from pocketsync.cli._errors import CliError
 
+    search, enrich = verbs.get("search"), verbs.get("enrich")
     with pytest.raises(CliError) as exc:
-        verbs.get("search").invoke(rt, {"query": "x", "bogus": 1})
+        search.invoke(rt, {"query": "x", "bogus": 1})
     assert exc.value.code == 1
     with pytest.raises(CliError):
-        verbs.get("search").invoke(rt, {})
+        search.invoke(rt, {})
     with pytest.raises(CliError):
-        verbs.get("search").invoke(rt, {"query": "x", "apply": True})  # read-only
+        search.invoke(rt, {"query": "x", "apply": True})  # read-only
     with pytest.raises(CliError):
-        verbs.get("search").invoke(rt, {"query": "x", "limit": "ten"})
+        search.invoke(rt, {"query": "x", "limit": "ten"})
     with pytest.raises(CliError):
-        verbs.get("search").invoke(rt, {"query": "x", "label": "meeting"})  # not a list
+        search.invoke(rt, {"query": "x", "label": "meeting"})  # not a list
     with pytest.raises(CliError):
-        verbs.get("enrich").invoke(rt, {"all": True, "status": "nope"})  # not in enum
+        enrich.invoke(rt, {"all": True, "status": "nope"})  # not in enum
     with pytest.raises(CliError):
-        verbs.get("enrich").invoke(rt, {"all": True, "apply": "yes"})
+        enrich.invoke(rt, {"all": True, "apply": "yes"})
 
 
 def test_invoke_enrich_apply_defaults_off(rt):
     out = verbs.get("enrich").invoke(rt, {"all": True})
     assert out["dry_run"] is True
     out = verbs.get("enrich").invoke(rt, {"id": ["r0002"], "apply": True})
-    assert out["dry_run"] is False and out["updated"] == 1
+    assert out["dry_run"] is False
+    assert out["updated"] == 1
 
 
 CASES = [
@@ -400,7 +402,8 @@ def test_mcp_enrich_apply_matches_cli_apply(tmp_path, monkeypatch, capsys):
             assert not res.isError, res.content
             results.append(json.loads(res.content[0].text))
     assert results[0] == results[1]
-    assert results[1]["dry_run"] is False and results[1]["updated"] == 1
+    assert results[1]["dry_run"] is False
+    assert results[1]["updated"] == 1
 
 
 def test_mcp_cli_error_matches_cli_error(rt, capsys):

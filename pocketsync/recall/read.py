@@ -100,38 +100,49 @@ def _filter_score(doc: dict[str, Any], name: str) -> float | None:
     return float(value) if isinstance(value, (int, float)) else None
 
 
-def passes(doc: dict[str, Any], flt: dict[str, Any]) -> bool:
-    """Evaluate a :func:`recording_filter` result against one fetched doc (in Python)."""
-    if doc.get(vindex.PATH_DELETED) is True or doc.get("merged_into") is not None:
-        return False
-    if vindex.PATH_LABELS in flt:
-        labels = (doc.get("enrichment") or {}).get("labels") or []
-        if not set(labels) & set(flt[vindex.PATH_LABELS]["$in"]):
-            return False
+def _labels_passes(doc: dict[str, Any], flt: dict[str, Any]) -> bool:
+    if vindex.PATH_LABELS not in flt:
+        return True
+    labels = (doc.get("enrichment") or {}).get("labels") or []
+    return bool(set(labels) & set(flt[vindex.PATH_LABELS]["$in"]))
+
+
+def _range_passes(doc: dict[str, Any], flt: dict[str, Any]) -> bool:
     rng = flt.get(vindex.PATH_RECORDING_AT)
-    if rng:
-        at = doc.get("recording_at")
-        if not isinstance(at, str):
-            return False
-        if "$gte" in rng and at < rng["$gte"]:
-            return False
-        if "$lt" in rng and at >= rng["$lt"]:
-            return False
-        if "$lte" in rng and at > rng["$lte"]:
-            return False
+    if not rng:
+        return True
+    at = doc.get("recording_at")
+    if not isinstance(at, str):
+        return False
+    if "$gte" in rng and at < rng["$gte"]:
+        return False
+    if "$lt" in rng and at >= rng["$lt"]:
+        return False
+    return not ("$lte" in rng and at > rng["$lte"])
+
+
+def _score_passes(score: float | None, cond: dict[str, Any]) -> bool:
+    if "$gte" in cond and (score is None or score < cond["$gte"]):
+        return False
+    return not ("$not" in cond and score is not None and score >= cond["$not"]["$gte"])
+
+
+def _filters_pass(doc: dict[str, Any], flt: dict[str, Any]) -> bool:
     for path, name in (
         (vindex.PATH_HAS_ACTION_ITEMS, "has_action_items"),
         (vindex.PATH_SENSITIVE, "sensitive"),
     ):
         cond = flt.get(path)
-        if cond is None:
-            continue
-        score = _filter_score(doc, name)
-        if "$gte" in cond and (score is None or score < cond["$gte"]):
-            return False
-        if "$not" in cond and score is not None and score >= cond["$not"]["$gte"]:
+        if cond is not None and not _score_passes(_filter_score(doc, name), cond):
             return False
     return True
+
+
+def passes(doc: dict[str, Any], flt: dict[str, Any]) -> bool:
+    """Evaluate a :func:`recording_filter` result against one fetched doc (in Python)."""
+    if doc.get(vindex.PATH_DELETED) is True or doc.get("merged_into") is not None:
+        return False
+    return _labels_passes(doc, flt) and _range_passes(doc, flt) and _filters_pass(doc, flt)
 
 
 def _enrichment(doc: dict[str, Any]) -> dict[str, Any]:
