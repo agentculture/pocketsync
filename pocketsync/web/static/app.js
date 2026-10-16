@@ -3,28 +3,46 @@
 
 const $ = (sel) => document.querySelector(sel);
 
+const absent = (value) => value === undefined || value === null || value === false;
+
+function setProp(node, key, value) {
+  if (key === "class") node.className = value;
+  else if (key === "text") node.textContent = value;
+  else if (key === "dataset") Object.assign(node.dataset, value);
+  else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
+  else node.setAttribute(key, value === true ? "" : String(value));
+}
+
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(props)) {
-    if (value === undefined || value === null || value === false) continue;
-    if (key === "class") node.className = value;
-    else if (key === "text") node.textContent = value;
-    else if (key === "dataset") Object.assign(node.dataset, value);
-    else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
-    else node.setAttribute(key, value === true ? "" : String(value));
+    if (!absent(value)) setProp(node, key, value);
   }
   for (const child of children.flat()) {
-    if (child === null || child === undefined || child === false) continue;
-    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    if (!absent(child)) node.append(child instanceof Node ? child : document.createTextNode(String(child)));
   }
   return node;
+}
+
+// An async action that failed outside its own handling: say so where the user is looking,
+// the same way the views already report errors (an error line in place of the content).
+function errorLine(tag, err) {
+  return el(tag, { class: "error-line", text: err?.message || "Something went wrong. Try again." });
+}
+
+const failInto = (sel, tag = "p") => (err) => { $(sel).replaceChildren(errorLine(tag, err)); };
+const failAfter = (sel, tag = "li") => (err) => { $(sel).append(errorLine(tag, err)); };
+const readerFailed = failInto("#transcript", "li");
+
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
 
 // ---------- API ----------
 
 class ApiError extends Error {
   constructor(status, body) {
-    const err = (body && body.error) || {};
+    const err = body?.error || {};
     super(err.message || `request failed (${status})`);
     this.status = status;
     this.code = err.code || "error";
@@ -114,11 +132,12 @@ const calm = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
 function seeded(text) {
   let h = 2166136261;
-  for (const ch of String(text)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  for (const ch of String(text)) h = Math.imul(h ^ ch.codePointAt(0), 16777619);
   return () => {
     h = Math.imul(h ^ (h >>> 15), 2246822507);
     h = Math.imul(h ^ (h >>> 13), 3266489909);
-    return ((h ^= h >>> 16) >>> 0) / 4294967296;
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
   };
 }
 
@@ -262,7 +281,7 @@ async function loadIndex() {
     state.recordings = new Map(data.recordings.map((r) => [r.id, r]));
     const labels = new Set();
     data.recordings.forEach((r) => (r.labels || []).forEach((l) => labels.add(l)));
-    state.labels = [...labels].sort();
+    state.labels = [...labels].sort((a, b) => a.localeCompare(b));
     const select = $("#scope-label");
     select.replaceChildren(el("option", { value: "", text: "All kinds" }),
       ...state.labels.map((l) => el("option", { value: l, text: labelName(l) })));
@@ -371,7 +390,7 @@ function renderAnswer(turn, answerNode, res) {
 
   revealWords(answerNode);
 
-  if (res.retrieval && res.retrieval.mode === "keyword") {
+  if (res.retrieval?.mode === "keyword") {
     turn.append(el("p", { class: "notice", text: "Matched on keywords only: semantic search is unavailable right now, so some relevant moments may be missing." }));
   }
   if (citations.length) turn.append(sourceList(turn, citations));
@@ -434,15 +453,15 @@ function flyMark(fromRect) {
 function openCitation(turn, c, origin) {
   turn.querySelectorAll(".cite").forEach((b) => b.setAttribute("aria-pressed", b.textContent === String(c.n) ? "true" : "false"));
   turn.querySelectorAll(".source").forEach((b) => b.setAttribute("aria-current", b.dataset.n === String(c.n) ? "true" : "false"));
-  openReader(c.id, c.start, c.end, origin);
+  openReader(c.id, c.start, c.end, origin).catch(readerFailed);
 }
 
 // ---------- reader ----------
 
 async function openReader(id, start = null, end = null, origin = null) {
-  const fromRect = origin && origin.getBoundingClientRect ? origin.getBoundingClientRect() : null;
-  const sameRec = state.reader && state.reader.id === id;
-  state.reader = { id, start, end, duration: (state.recordings.get(id) || {}).duration };
+  const fromRect = origin?.getBoundingClientRect?.() ?? null;
+  const sameRec = state.reader?.id === id;
+  state.reader = { id, start, end, duration: state.recordings.get(id)?.duration };
   $(".shell").classList.add("reading");
   const reader = $("#reader");
   reader.hidden = false;
@@ -456,7 +475,7 @@ async function openReader(id, start = null, end = null, origin = null) {
     return;
   }
 
-  $("#reader-title").textContent = (state.recordings.get(id) || {}).title || "Loading";
+  $("#reader-title").textContent = state.recordings.get(id)?.title || "Loading";
   $("#reader-meta").textContent = "";
   $("#reader-labels").replaceChildren();
   $("#reader-summary").replaceChildren();
@@ -468,7 +487,7 @@ async function openReader(id, start = null, end = null, origin = null) {
       api(`/api/recordings/${encodeURIComponent(id)}`),
       api(`/api/recordings/${encodeURIComponent(id)}/transcript`),
     ]);
-    if (!state.reader || state.reader.id !== id) return;
+    if (state.reader?.id !== id) return;
     renderReader(rec, tr);
     highlight(start, end);
     requestAnimationFrame(() => requestAnimationFrame(() => flyMark(fromRect)));
@@ -483,8 +502,8 @@ function renderReader(rec, tr) {
   state.reader.duration = rec.duration || lastEnd || state.reader.duration;
 
   $("#reader-title").textContent = rec.title || "Untitled recording";
-  $("#reader-meta").textContent = [when(rec.recording_at), length(state.reader.duration),
-    rec.speakers && rec.speakers.length ? `${rec.speakers.length} speaker${rec.speakers.length === 1 ? "" : "s"}` : ""]
+  const speakers = rec.speakers?.length ? plural(rec.speakers.length, "speaker") : "";
+  $("#reader-meta").textContent = [when(rec.recording_at), length(state.reader.duration), speakers]
     .filter(Boolean).join(", ");
   $("#reader-labels").replaceChildren(...(rec.labels || []).map((l) => el("span", { class: "chip", text: labelName(l) })));
 
@@ -524,8 +543,8 @@ function renderSummary(md) {
   for (const raw of md.split(/\r?\n/)) {
     const line = raw.trim().replace(/\*\*(.+?)\*\*/g, "$1").replace(/__(.+?)__/g, "$1");
     if (!line) { flush(); list = null; continue; }
-    const h = /^#{1,6}\s+(.*)$/.exec(line);
-    const li = /^(?:[-*•]|\d+[.)])\s+(.*)$/.exec(line);
+    const h = /^#{1,6}\s+(\S.*)$/.exec(line);
+    const li = /^(?:[-*•]|\d+[.)])\s+(\S.*)$/.exec(line);
     if (h) { flush(); list = null; out.push(el("h4", { text: h[1] })); }
     else if (li) { flush(); if (!list) { list = el("ul"); out.push(list); } list.append(el("li", { text: li[1] })); }
     else { list = null; para.push(line); }
@@ -560,7 +579,7 @@ function buildSpeechMap(segs) {
 }
 
 function seekTape(event) {
-  if (!state.reader || !state.reader.duration) return;
+  if (!state.reader?.duration) return;
   const box = event.currentTarget.getBoundingClientRect();
   const at = ((event.clientX - box.left) / box.width) * state.reader.duration;
   const segs = [...document.querySelectorAll("#transcript .seg")];
@@ -654,8 +673,10 @@ async function enrichApply() {
   }
 }
 
+const MODE_NAMES = { classify: "new labels", embed: "new search vectors" };
+
 function modeName(mode) {
-  return mode === "classify" ? "new labels" : mode === "embed" ? "new search vectors" : "new labels and search vectors";
+  return MODE_NAMES[mode] || "new labels and search vectors";
 }
 
 // ---------- recordings view ----------
@@ -667,10 +688,10 @@ async function showRecordings() {
   if (data.error) { list.replaceChildren(el("p", { class: "error-line", text: data.error.message })); return; }
 
   $("#rec-labels").replaceChildren(
-    el("button", { type: "button", class: "chip", "aria-pressed": state.recLabel === "" ? "true" : "false", text: "All", onclick: () => { state.recLabel = ""; showRecordings(); } }),
+    el("button", { type: "button", class: "chip", "aria-pressed": state.recLabel === "" ? "true" : "false", text: "All", onclick: () => { state.recLabel = ""; showRecordings().catch(failInto("#rec-list")); } }),
     ...state.labels.map((l) => el("button", {
       type: "button", class: "chip", "aria-pressed": state.recLabel === l ? "true" : "false", text: labelName(l),
-      onclick: () => { state.recLabel = state.recLabel === l ? "" : l; showRecordings(); },
+      onclick: () => { state.recLabel = state.recLabel === l ? "" : l; showRecordings().catch(failInto("#rec-list")); },
     })));
 
   const rows = data.recordings
@@ -696,12 +717,12 @@ async function showRecordings() {
       const d = parseDate(r.recording_at);
       return el("li", {}, el("button", {
         type: "button", class: "rec", dataset: { id: r.id },
-        "aria-current": state.reader && state.reader.id === r.id ? "true" : "false",
+        "aria-current": state.reader?.id === r.id ? "true" : "false",
         onclick: () => openReader(r.id),
       },
         el("span", { class: "rec-time", text: d ? timeFmt.format(d) : "" }),
         el("span", { class: "rec-title", text: r.title || "Untitled recording" }),
-        el("span", { class: "rec-side", text: [length(r.duration), r.action_items ? `${r.action_items} to-do${r.action_items === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ") }),
+        el("span", { class: "rec-side", text: [length(r.duration), r.action_items ? plural(r.action_items, "to-do") : ""].filter(Boolean).join(", ") }),
         scaleTape(r.duration, longest),
         (r.labels || []).length ? el("span", { class: "rec-labels" }, r.labels.map((l) => el("span", { class: "chip", text: labelName(l) }))) : null,
       ));
@@ -742,7 +763,7 @@ async function showTodos() {
 
 // ---------- routing ----------
 
-const VIEWS = ["ask", "recordings", "todos"];
+const VIEWS = new Set(["ask", "recordings", "todos"]);
 
 function route() {
   if (document.startViewTransition && !calm() && document.body.dataset.ready) {
@@ -753,14 +774,14 @@ function route() {
 }
 
 function showView() {
-  const view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "ask";
+  const view = VIEWS.has(location.hash.slice(1)) ? location.hash.slice(1) : "ask";
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== view;
   document.querySelectorAll(".views a").forEach((a) => {
     if (a.dataset.view === view) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
-  if (view === "recordings") showRecordings();
-  if (view === "todos") showTodos();
+  if (view === "recordings") showRecordings().catch(failInto("#rec-list"));
+  if (view === "todos") showTodos().catch(failInto("#todo-list"));
   if (view === "ask") $("#question").focus({ preventScroll: true });
 }
 
@@ -778,7 +799,7 @@ function wire() {
     const text = q.value;
     q.value = "";
     autosize(q);
-    ask(text);
+    ask(text).catch(failAfter("#thread"));
   });
   q.addEventListener("input", () => autosize(q));
   q.addEventListener("keydown", (e) => {
@@ -787,7 +808,7 @@ function wire() {
       $("#composer").requestSubmit();
     }
   });
-  document.querySelectorAll(".suggestion").forEach((b) => b.addEventListener("click", () => ask(b.textContent)));
+  document.querySelectorAll(".suggestion").forEach((b) => b.addEventListener("click", () => ask(b.textContent).catch(failAfter("#thread"))));
 
   $("#reader-close").addEventListener("click", closeReader);
   $("#reader-tape").addEventListener("click", seekTape);
@@ -814,5 +835,5 @@ function wire() {
 wire();
 route();
 requestAnimationFrame(() => { document.body.dataset.ready = "1"; });
-loadHealth();
-loadIndex();
+// Both handle their own failures (the health pill reads Offline; the index falls back to empty).
+await Promise.all([loadHealth(), loadIndex()]);

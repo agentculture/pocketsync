@@ -24,9 +24,9 @@
       <a href="#recordings" data-view="recordings">Recordings</a>
       <a href="#todos" data-view="todos">To-dos</a>
     </nav>
-    <p class="health" id="health" role="status" aria-live="polite">
+    <output class="health" id="health" aria-live="polite">
       <span class="health-dot" aria-hidden="true"></span><span class="health-text">Connecting</span>
-    </p>
+    </output>
   </header>
 
   <div class="shell">
@@ -38,7 +38,7 @@
 
         <div class="empty" id="ask-empty">
           <div class="memory" id="memory" hidden>
-            <div class="memory-bars" id="memory-bars" role="group" aria-label="Your recordings, oldest to newest"></div>
+            <fieldset class="memory-bars" id="memory-bars" aria-label="Your recordings, oldest to newest"></fieldset>
             <p class="memory-caption" id="memory-caption" aria-live="polite"></p>
           </div>
           <p class="empty-lead">Ask about anything you've recorded.</p>
@@ -55,7 +55,7 @@
         </div>
 
         <form class="composer" id="composer" autocomplete="off">
-          <div class="scope" role="group" aria-label="Search scope">
+          <fieldset class="scope" aria-label="Search scope">
             <label class="scope-item">
               <span class="sr-only">Time range</span>
               <select id="scope-range">
@@ -75,7 +75,7 @@
               <input type="checkbox" id="scope-sensitive">
               <span>Hide sensitive</span>
             </label>
-          </div>
+          </fieldset>
           <div class="ask-row">
             <label for="question" class="sr-only">Question</label>
             <textarea id="question" rows="1" placeholder="Ask your recordings" required></textarea>
@@ -88,7 +88,7 @@
       <section class="view" id="view-recordings" aria-labelledby="rec-title" hidden>
         <div class="view-head">
           <h1 id="rec-title">Recordings</h1>
-          <div class="chips" id="rec-labels" role="group" aria-label="Filter by label"></div>
+          <fieldset class="chips" id="rec-labels" aria-label="Filter by label"></fieldset>
         </div>
         <div id="rec-list" class="days"></div>
       </section>
@@ -112,7 +112,7 @@
         <button type="button" class="reader-close" id="reader-close" aria-label="Close recording">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
         </button>
-        <h2 id="reader-title" class="reader-title"></h2>
+        <h2 id="reader-title" class="reader-title">Recording</h2>
         <p class="reader-meta" id="reader-meta"></p>
         <div class="tape tape-large" id="reader-tape" aria-hidden="true" title="Jump to a moment"></div>
         <p class="tape-legend" id="reader-legend"></p>
