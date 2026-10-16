@@ -88,7 +88,7 @@ def plan_enrich(
         rng["$gte"] = _check_date("since", since)
     if until:
         end = _check_date("until", until)
-        rng["$lte"] = end + "￿" if _DATE.match(end) else end
+        rng["$lte"] = end + "\uffff" if _DATE.match(end) else end
     if rng:
         query[vindex.PATH_RECORDING_AT] = rng
     if ids:
