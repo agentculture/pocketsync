@@ -82,7 +82,6 @@ def run_stdio() -> None:
     """
     try:
         import anyio  # noqa: PLC0415 - optional extra (an mcp dependency)
-
         from mcp.server.stdio import stdio_server  # noqa: PLC0415
     except ImportError as exc:
         raise ServerExtraMissing(_EXTRA_MESSAGE) from exc

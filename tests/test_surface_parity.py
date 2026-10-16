@@ -362,6 +362,7 @@ def _mcp_call(runtime, name: str, arguments: dict):
     import asyncio
 
     from mcp.shared.memory import create_connected_server_and_client_session
+
     from pocketsync.mcp import server as mcp_server
 
     async def go():
