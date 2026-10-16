@@ -25,9 +25,9 @@ INSTALL_HINT = "pip install 'pocketsync[mcp]' (the MCP server needs the mcp extr
 def cmd_mcp(args: argparse.Namespace) -> int | None:
     try:
         server = importlib.import_module(SERVER_MODULE)
+        rc = server.run_stdio()  # raises ServerExtraMissing (an ImportError) without the SDK
     except ImportError as exc:
         raise CliError(EXIT_ENV_ERROR, f"MCP server unavailable: {exc}", INSTALL_HINT) from exc
-    rc = server.run_stdio()
     return rc if isinstance(rc, int) else None
 
 

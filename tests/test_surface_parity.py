@@ -6,8 +6,8 @@ that lists the problems it has against the registry (a missing command, a missin
 cases prove each check actually bites: dropping a verb from the registry, or a command from
 the CLI parser, makes the parity check fail.
 
-The CLI half lives here now. The MCP half is added by the MCP server task (t10): see the
-``MCP half`` section at the bottom, and add its problems function to :data:`SURFACES`.
+The CLI half and the MCP half (tool specs, plus in-process tool-call output parity against
+the CLI and :meth:`Verb.invoke`) both live here.
 """
 
 from __future__ import annotations
@@ -70,8 +70,11 @@ def cli_problems(registry, parser: argparse.ArgumentParser) -> list[str]:
     return problems
 
 
-#: surface name -> problems function. t10 adds ``"mcp": mcp_problems``.
-SURFACES = {"cli": lambda registry: cli_problems(registry, _build_parser())}
+#: surface name -> problems function (``mcp_problems`` is defined in the MCP half below).
+SURFACES = {
+    "cli": lambda registry: cli_problems(registry, _build_parser()),
+    "mcp": lambda registry: mcp_problems(registry, _mcp_specs()),
+}
 
 
 @pytest.mark.parametrize("surface", sorted(SURFACES))
@@ -291,8 +294,119 @@ def test_verbs_module_imports_no_third_party_code():
 
 
 # -- MCP half (t10) -------------------------------------------------------------------------
-# t10: define ``mcp_problems(registry) -> list[str]`` (every registry verb is exactly one MCP
-# tool named ``verb.tool_name`` whose inputSchema == ``verb.params_schema()``, and no extra
-# tools), register it as ``SURFACES["mcp"] = mcp_problems``, add the mutation cases
-# (a tool dropped / an extra tool fails), and extend CASES-based output parity to the MCP
-# tool call result.
+
+
+def _mcp_specs() -> list[dict]:
+    from pocketsync.mcp import tools  # stdlib-only: no mcp SDK needed to list the specs
+
+    return tools.tool_specs()
+
+
+def mcp_problems(registry, specs: list[dict]) -> list[str]:
+    """Every way the MCP tool list disagrees with ``registry`` (empty when in parity)."""
+    problems: list[str] = []
+    by_name: dict[str, dict] = {}
+    for spec in specs:
+        if spec["name"] in by_name:
+            problems.append(f"mcp: duplicate tool {spec['name']!r}")
+        by_name[spec["name"]] = spec
+    wanted = {v.tool_name for v in registry}
+    for extra in sorted(set(by_name) - wanted):
+        problems.append(f"mcp: tool {extra!r} has no registry verb")
+    for verb in registry:
+        spec = by_name.get(verb.tool_name)
+        if spec is None:
+            problems.append(f"mcp: no tool for verb {verb.name!r}")
+            continue
+        if spec["inputSchema"] != verb.params_schema():
+            problems.append(f"mcp: {verb.name} inputSchema != params_schema()")
+        props = spec["inputSchema"].get("properties", {})
+        if verb.mutating:
+            if props.get("apply", {}).get("default") is not False:
+                problems.append(f"mcp: mutating {verb.name} lacks apply (default false)")
+            if "apply=true" not in spec["description"]:
+                problems.append(f"mcp: mutating {verb.name} does not say it is a dry run")
+        elif "apply" in props:
+            problems.append(f"mcp: read-only {verb.name} exposes apply")
+        elif "calling model's context" not in spec["description"]:
+            problems.append(f"mcp: read tool {verb.name} lacks the privacy note")
+    return problems
+
+
+def test_a_registry_verb_missing_from_mcp_fails():
+    assert mcp_problems((*REGISTRY, _extra_verb()), _mcp_specs())
+
+
+def test_an_mcp_tool_dropped_fails():
+    specs = [s for s in _mcp_specs() if s["name"] != "search"]
+    assert any("search" in p for p in mcp_problems(REGISTRY, specs))
+
+
+def test_an_extra_mcp_tool_fails():
+    specs = [*_mcp_specs(), {"name": "phantom", "description": "", "inputSchema": {}}]
+    assert any("phantom" in p for p in mcp_problems(REGISTRY, specs))
+
+
+def test_an_mcp_schema_drift_fails():
+    specs = _mcp_specs()
+    specs[1] = {**specs[1], "inputSchema": {**specs[1]["inputSchema"], "required": []}}
+    assert mcp_problems(REGISTRY, specs)
+
+
+def test_a_read_verb_turned_mutating_fails_on_mcp():
+    verb = next(v for v in REGISTRY if v.name == "search")
+    assert mcp_problems((replace(verb, mutating=True),), _mcp_specs())
+
+
+def _mcp_call(runtime, name: str, arguments: dict):
+    import asyncio
+
+    from mcp.shared.memory import create_connected_server_and_client_session
+    from pocketsync.mcp import server as mcp_server
+
+    async def go():
+        server = mcp_server.build_server(lambda: runtime)
+        async with create_connected_server_and_client_session(server) as session:
+            return await session.call_tool(name, arguments)
+
+    return asyncio.run(go())
+
+
+@pytest.mark.parametrize("name, argv, arguments", CASES, ids=lambda c: str(c))
+def test_mcp_result_equals_cli_json_and_registry_invoke(rt, capsys, name, argv, arguments):
+    pytest.importorskip("mcp")
+    res = _mcp_call(rt, name, arguments)
+    assert not res.isError, res.content
+    mcp_out = json.loads(res.content[0].text)
+    assert main([name, *argv, "--json"]) == 0
+    assert mcp_out == json.loads(capsys.readouterr().out)
+    assert mcp_out == verbs.get(name).invoke(rt, arguments)
+
+
+def test_mcp_enrich_apply_matches_cli_apply(tmp_path, monkeypatch, capsys):
+    pytest.importorskip("mcp")
+    results = []
+    for sub, via_cli in (("cli", True), ("mcp", False)):
+        runtime = install(monkeypatch, FakeRuntime(tmp_path / sub))
+        runtime.db["recordings"].insert_many(
+            [_doc("r0002", "2026-10-05T09:00:00Z", sensitive=0.9, status="error")]
+        )
+        if via_cli:
+            assert main(["enrich", "--id", "r0002", "--apply", "--json"]) == 0
+            results.append(json.loads(capsys.readouterr().out))
+        else:
+            res = _mcp_call(runtime, "enrich", {"id": ["r0002"], "apply": True})
+            assert not res.isError, res.content
+            results.append(json.loads(res.content[0].text))
+    assert results[0] == results[1]
+    assert results[1]["dry_run"] is False and results[1]["updated"] == 1
+
+
+def test_mcp_cli_error_matches_cli_error(rt, capsys):
+    pytest.importorskip("mcp")
+    res = _mcp_call(rt, "get", {"id": "nope"})
+    assert res.isError
+    assert main(["get", "nope", "--json"]) == 1
+    err = json.loads(capsys.readouterr().err)
+    assert err["message"] in res.content[0].text
+    assert f"hint: {err['remediation']}" in res.content[0].text
