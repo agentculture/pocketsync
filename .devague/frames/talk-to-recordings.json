@@ -4,7 +4,7 @@
   "schema_version": 6,
   "status": "exported",
   "created": "2026-10-16T12:11:33Z",
-  "updated": "2026-10-16T12:21:13Z",
+  "updated": "2026-10-16T12:25:39Z",
   "claims": [
     {
       "id": "c1",
@@ -1015,7 +1015,7 @@
       "behavior": "search and enrich on all three surfaces route through the same core functions (spy asserts one call path)",
       "source_text": "Talk to my Pocket data: on-demand re-enrichment (pocketsync enrich), an MCP server (pocketsync mcp) and a private chat site (pocketsync web at recall.culture.dev) \u2014 one retrieval/enrich core, three surfaces with CLI\u2194MCP\u2194site parity",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o2",
@@ -1024,7 +1024,7 @@
       "behavior": "importing pocketsync.mcp leaves mcp unimported; missing extra exits 2 with an install hint and empty stdout",
       "source_text": "pocketsync mcp uses the official mcp SDK low-level Server over stdio behind a pocketsync[mcp] extra (mcp>=1.2,<2), lazily imported (ServerExtraMissing -> CliError exit 2 with an install hint), stdout reserved for protocol \u2014 mirroring culture-rules",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o3",
@@ -1033,7 +1033,7 @@
       "behavior": "every registry verb is a CLI command and an MCP tool, no extra tools; removing any one fails the parity test",
       "source_text": "one verb registry drives CLI, MCP tools and site actions; a data-driven parity test asserts every registry verb exists as a CLI command and an MCP tool (and no extra tools), mutating verbs expose apply (default false) and dry-run otherwise",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o4",
@@ -1042,7 +1042,7 @@
       "behavior": "dry-run leaves the collection byte-identical and lists exactly the selected ids; --apply requeues only selected, non-deleted, hash-matching docs",
       "source_text": "pocketsync enrich selects recordings (--all/--since/--until/--id/--label/--status/--only) and re-queues them by flipping enrichment.status to pending with attempts=0 and clearing error/next_attempt_at, dry-run unless --apply; the existing EnrichmentWorker does the work (no second enrichment path)",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o5",
@@ -1051,7 +1051,7 @@
       "behavior": "mode classify leaves chunks/summary_vector identical with 0 embed calls; mode embed leaves labels/filters identical with 0 classify calls",
       "source_text": "--only classify re-runs the decider on stored chunk/summary text and writes only labels/filters/taxonomy_version, keeping vectors; --only embed re-embeds keeping labels \u2014 the worker gains a per-doc enrichment.mode (full|classify|embed) because _build_payload today does embed+classify all-or-nothing",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o6",
@@ -1060,7 +1060,7 @@
       "behavior": "a 503 leaves the doc pending with deferred_reason and next_attempt_at persisted and reported by status --json; success clears both",
       "source_text": "gateway deferrals are persisted: when EnrichmentUnavailable defers a pending doc, the worker writes enrichment.deferred_reason and enrichment.next_attempt_at so status/doctor can say why the backlog is not draining and when it retries (today the reason lives only in the in-memory _retry map)",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o7",
@@ -1069,7 +1069,7 @@
       "behavior": "exactly one pocketsync.recording.reclassified per label change, none when labels are unchanged; enriched dedupe unchanged",
       "source_text": "a re-enrich that changes labels without changing content_hash emits one pocketsync.recording.reclassified event via the outbox (today Outbox dedupes on (id, content_hash) so reclassify publishes nothing)",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o8",
@@ -1078,7 +1078,7 @@
       "behavior": "POCKETSYNC_CHAT_MODEL sets the request model; default is unsloth/Qwen3.8-27B-NVFP4; not a secret setting",
       "source_text": "GatewayClient gains a chat-completions call (/chat/completions) with the model from a new non-secret setting POCKETSYNC_CHAT_MODEL defaulting to unsloth/Qwen3.8-27B-NVFP4, so the chat lane can be switched (e.g. to Nemotron 3.5 Super VL) without code changes",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o9",
@@ -1087,7 +1087,7 @@
       "behavior": "0.11.1 reembed tests pass unedited",
       "source_text": "pocketsync enrich replaces the narrow reembed selector but reembed stays as an alias/compat verb (its JSON keys dry_run/model/dims/ids/count/updated are an existing contract)",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o10",
@@ -1096,7 +1096,7 @@
       "behavior": "label/date filters go to parentFilter on the chunk index and filter on the summary index; deleted/merged excluded; query embedded with prompt_name Query",
       "source_text": "a read-only retrieval core (pocketsync/recall/ or similar) runs $vectorSearch over recordings_chunk_vec (root filters in parentFilter) and recordings_summary_vec (filters in filter), embeds the query via the gateway with prompt_name Query (embed() hardcodes Document today), excludes deleted_in_pocket and merged_into docs, and returns ids, titles, recording_at, score and the best-matching chunks with start/end offsets",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o11",
@@ -1105,7 +1105,7 @@
       "behavior": "the index definition is updated in place and check() reports no mismatch",
       "source_text": "the vector index filter fields grow to include enrichment.filters.sensitive and enrichment.filters.has_action_items (today FILTER_PATHS is labels/deleted_in_pocket/recording_at only, so sensitive cannot be filtered inside $vectorSearch); vindex updates an existing index definition in place instead of only creating missing ones",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o12",
@@ -1114,7 +1114,7 @@
       "behavior": "default returns sensitive docs; exclude_sensitive drops score>=threshold and keeps absent-score docs",
       "source_text": "sensitive recordings are searchable by default on every read surface (user decision: internal network); an opt-in exclude_sensitive filter drops docs whose enrichment.filters.sensitive is at or above threshold; absent scores are treated as not sensitive",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o13",
@@ -1123,7 +1123,7 @@
       "behavior": "unit tests run with an injected search callable; no $vectorSearch through mongomock",
       "source_text": "$vectorSearch is unit-tested through an injectable search seam (fake returns canned hits) since mongomock cannot run it; real behaviour (parentFilter on recording_at, deleted_in_pocket, sensitive) is covered in the opt-in tests/integration/test_atlas_local.py",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o14",
@@ -1132,7 +1132,7 @@
       "behavior": "search/get/transcript/recordings/actions return identical JSON on both surfaces for the same inputs",
       "source_text": "read verbs get CLI parity with the MCP tools: pocketsync search, get, transcript, recordings (list), actions \u2014 all --json, all read-only, all runtime verbs under _grant re-exec",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o15",
@@ -1141,7 +1141,7 @@
       "behavior": "non-loopback bind refused; API endpoints answer through the registry verbs; no third-party import",
       "source_text": "pocketsync web is a stdlib ThreadingHTTPServer (like webhook/server.py) bound to loopback only on a new setting POCKETSYNC_WEB_PORT (default 8788), serving one self-contained HTML/JS page plus a JSON API (/api/chat, /api/search, /api/recordings, /api/recordings/<id>, /api/actions, /api/enrich) that calls the same retrieval/enrich core as CLI and MCP \u2014 no extra dependency and no second retrieval implementation",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o16",
@@ -1150,7 +1150,7 @@
       "behavior": "every citation names a retrieved id and an in-range timestamp; zero hits yields a found-nothing answer with no citations",
       "source_text": "chat answers are generated by the configured chat model from retrieved chunks only, and every answer cites recordings with ids and start/end timestamps; clicking a citation opens that recording's transcript at the timestamp; a per-recording and per-result-set Re-enrich button calls the enrich operation (dry-run preview, then apply)",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o17",
@@ -1159,7 +1159,7 @@
       "behavior": "unit runs pocketsync web under grant run --inject; pocketchat.culture.dev unauthenticated returns 302; pocketsync.culture.dev routes unchanged",
       "source_text": "deploy adds deploy/systemd/pocketsync-web.service (grant run --inject, like pocketsync-serve) and a runbook section adding pocketchat.culture.dev as a second ingress hostname on the existing remote-managed pocketsync-culture-dev tunnel with a Cloudflare Access app allowing only the operator email and no Bypass; web verifies the Access JWT (team domain + audience settings) on every request",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o18",
@@ -1168,7 +1168,7 @@
       "behavior": "every new verb has --json, explain, learn and overview entries and the rubric passes",
       "source_text": "docs: CLAUDE.md, README.md and QWEN.md amend the 'no UI' non-goal to 'UI only as a thin client over the CLI/MCP surface'; all four harness files plus README, explain catalog, learn (text+JSON), overview._VERBS, tests/test_cli_surface.py NEW_VERBS and _grant.RUNTIME_VERBS list the new verbs",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o19",
@@ -1177,7 +1177,7 @@
       "behavior": "pass with no edits to their assertions",
       "source_text": "the sync contract is unchanged: file layout, landing schema, content_hash and the pocketsync.recording.enriched event stay as they are; new surfaces only read recordings and, for enrich, write enrichment.* fields through the sink's compare-and-set",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o20",
@@ -1186,7 +1186,7 @@
       "behavior": "both refuse non-loopback binds; the Bypass path is exactly pocketsync.culture.dev/hooks/pocket",
       "source_text": "the webhook Bypass stays exactly pocketsync.culture.dev/hooks/pocket; pocketchat.culture.dev gets no Bypass; web and webhook servers refuse non-loopback binds",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o21",
@@ -1195,7 +1195,7 @@
       "behavior": "dependencies stay []; importing pocketsync.recall and pocketsync.web loads no third-party module",
       "source_text": "core stays dependency-free: mcp SDK only behind pocketsync[mcp]; web uses stdlib only; no numpy; the lobes gateway and other Mongo containers on spark are not modified",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o22",
@@ -1204,7 +1204,7 @@
       "behavior": "3/3 probe questions rank the expected recording first; a chat answer cites >=1 timestamp; enrich --status error --apply drains retrying to 0; pocketchat 302 unauthenticated",
       "source_text": "on the live deploy: pocketsync search returns the matching recording first for >= 3 of 3 operator-chosen probe questions; a chat answer cites >= 1 recording with a timestamp; pocketsync enrich --status error --apply drains to 0 retrying within one worker cycle when the gateway is up; recall.culture.dev returns 302 unauthenticated",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o23",
@@ -1213,7 +1213,7 @@
       "behavior": "all jobs green with the parity test, coverage >= 60%, Sonar new issues 0",
       "source_text": "test suite: CLI\u2194MCP parity test passes for 100% of registry verbs, the full suite stays green and coverage stays >= 60%, teken cli doctor --strict passes, Sonar new issues = 0",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o24",
@@ -1222,7 +1222,7 @@
       "behavior": "a requeue issued while the worker holds the doc leaves it pending and it is re-enriched next cycle",
       "source_text": "re-queue is race-safe against an in-flight worker: enrich --apply bumps enrichment.generation and the worker's set_enrichment / set_enrichment_error CAS matches content_hash AND the generation it claimed, so a requeue issued mid-processing is not overwritten to done (today the CAS is on content_hash only, sinks/mongo.py set_enrichment)",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o25",
@@ -1231,7 +1231,7 @@
       "behavior": "HTML in a synthetic transcript renders escaped; CSP header present; foreign-Origin or non-JSON POST returns 403",
       "source_text": "web output is XSS-safe and the mutating API is CSRF-safe: transcript/summary/model text is rendered only via textContent (never innerHTML), responses carry a strict Content-Security-Policy (no inline script from data, default-src self), and POST /api/enrich and /api/chat require Content-Type application/json plus an Origin header equal to the configured site origin",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o26",
@@ -1240,7 +1240,7 @@
       "behavior": "the chat completions request carries no tools/functions field",
       "source_text": "the chat model and the MCP surface get no tools or side effects driven by model output: retrieved transcript text is untrusted context (prompt-injection), the chat model only produces text, and enrich runs only from an explicit operator click or CLI/MCP call with apply",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o27",
@@ -1249,7 +1249,7 @@
       "behavior": "missing/forged/expired/wrong-aud tokens get 403; partial config refuses start; unreachable JWKS gives 503",
       "source_text": "the Access JWT check fails closed: pocketsync web refuses to start without POCKETSYNC_ACCESS_TEAM_DOMAIN and POCKETSYNC_ACCESS_AUD unless run with an explicit --no-access-check (loopback dev only, loud warning); JWKS (https://<team>.cloudflareaccess.com/cdn-cgi/access/certs) is fetched lazily, cached, refreshed on unknown kid, and an unreachable JWKS yields 503 not allow",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o28",
@@ -1258,7 +1258,7 @@
       "behavior": "request disables thinking and caps context; think blocks are stripped; chat-lane failure returns 503 with citations",
       "source_text": "the chat request disables reasoning output for thinking models (chat_template_kwargs enable_thinking false and strips any leftover think block), caps the retrieved context (top 8 chunks, ~6000 chars) and the answer length, and returns 503 with the retrieved citations still listed when the chat lane is down",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o29",
@@ -1267,7 +1267,7 @@
       "behavior": "returns keyword matches labelled mode=keyword instead of erroring",
       "source_text": "when query embedding fails (embed lane down) search degrades to a case-insensitive keyword match over title, summary and chunk text with recording-level filters, and says so in the result (mode: keyword)",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     },
     {
       "id": "o30",
@@ -1276,7 +1276,7 @@
       "behavior": "the log line for a chat request has method, path, status, duration and no question/answer text",
       "source_text": "web access logging records method, path without query string, status and duration only \u2014 never question text, request bodies or answers",
       "origin": "llm",
-      "status": "proposed"
+      "status": "approved"
     }
   ]
 }
