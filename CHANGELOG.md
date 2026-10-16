@@ -26,6 +26,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - content_hash covers the mapped content fields only; Pocket's raw wire payload is excluded (deviation d2)
 - Default taxonomy (q8): the default labels stay, and a `sensitive` filter joins `has_action_items`; an unanswered filter is now absent (unknown) instead of 0.0
 - Automatic catch-up (d6): a fresh install backfills from POCKETSYNC_BACKFILL_SINCE (default 2024-01-01), an upgrade that bumps LANDING_SCHEMA re-lands every recording once, and downtime of any length is covered by the watermark window
+- Runtime verbs re-run under `grant run --inject` when a secret setting is unset and the grant store holds a same-named secret, so a bare `pocketsync status` works with hidden secrets (`POCKETSYNC_NO_GRANT=1` opts out)
 
 ### Fixed
 
