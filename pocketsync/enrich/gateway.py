@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tomllib
 import urllib.error
 import urllib.request
@@ -19,6 +20,9 @@ DEFAULT_GATEWAY_URL = "http://localhost:8001/v1"
 EMBED_MODEL = "gemma2-embed"
 EMBED_DIMS = 768
 DECIDER_MODEL = "decider:general"
+CHAT_MODEL = "unsloth/Qwen3.8-27B-NVFP4"
+DEFAULT_CHAT_MAX_TOKENS = 1024
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
 DEFAULT_TIMEOUT = 60.0
 _CHECK_GATEWAY = "check gateway"
 
@@ -141,6 +145,7 @@ class GatewayClient:
         taxonomy: Taxonomy | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         threshold: float = 0.5,
+        chat_model: str = CHAT_MODEL,
     ) -> None:
         url = base_url or os.environ.get("POCKETSYNC_GATEWAY_URL") or DEFAULT_GATEWAY_URL
         self.base_url = url.rstrip("/")
@@ -148,6 +153,7 @@ class GatewayClient:
         self.taxonomy = taxonomy or load_taxonomy()
         self.timeout = timeout
         self.threshold = threshold
+        self.chat_model = chat_model
 
     def _post(self, path: str, body: dict[str, Any], headers: dict[str, str] | None = None):
         hdrs = {"Content-Type": "application/json", **(headers or {})}
@@ -175,13 +181,13 @@ class GatewayClient:
         except json.JSONDecodeError as exc:
             raise CliError(2, "gateway returned invalid JSON", _CHECK_GATEWAY) from exc
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
-        """Embed documents with gemma2-embed; asserts 768-d vectors."""
+    def embed(self, texts: list[str], prompt_name: str = "Document") -> list[list[float]]:
+        """Embed texts with gemma2-embed (``prompt_name`` Document or Query); asserts 768-d."""
         if not texts:
             return []
         resp = self._post(
             "/embeddings",
-            {"model": EMBED_MODEL, "input": list(texts), "prompt_name": "Document"},
+            {"model": EMBED_MODEL, "input": list(texts), "prompt_name": prompt_name},
         )
         data = sorted(resp.get("data", []), key=lambda d: d.get("index", 0))
         vectors = [d["embedding"] for d in data]
@@ -191,6 +197,29 @@ class GatewayClient:
             if len(vec) != EMBED_DIMS:
                 raise CliError(2, f"expected {EMBED_DIMS}-d vectors, got {len(vec)}", "check model")
         return vectors
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        model: str | None = None,
+        max_tokens: int = DEFAULT_CHAT_MAX_TOKENS,
+    ) -> str:
+        """One non-streaming chat completion; thinking off, no tools, think blocks stripped."""
+        body = {
+            "model": model or self.chat_model,
+            "messages": list(messages),
+            "max_tokens": max_tokens,
+            "chat_template_kwargs": {"enable_thinking": False},
+        }
+        resp = self._post("/chat/completions", body)
+        try:
+            content = resp["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError, TypeError) as exc:
+            raise CliError(2, "gateway returned a malformed chat response", _CHECK_GATEWAY) from exc
+        content = _THINK_BLOCK.sub("", content)
+        if "</think>" in content:  # an unopened block: the template pre-filled <think>
+            content = content.rsplit("</think>", 1)[1]
+        return content.strip()
 
     def classify(self, text: str) -> Classification:
         """Classify ``text`` against the configured taxonomy via /v1/systemone."""
