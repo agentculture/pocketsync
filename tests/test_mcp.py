@@ -116,7 +116,8 @@ def test_module_main_exits_2_when_sdk_missing(monkeypatch, capsys):
     assert entry.main() == 2
     out = capsys.readouterr()
     assert out.out == ""
-    assert out.err.startswith("error:") and "pocketsync[mcp]" in out.err
+    assert out.err.startswith("error:")
+    assert "pocketsync[mcp]" in out.err
 
 
 # -- the tool list is the registry ----------------------------------------------------------
@@ -136,9 +137,11 @@ def test_tool_descriptions_carry_the_write_and_privacy_notes(rt):
         desc = by_name[v.tool_name]
         assert desc.startswith(v.summary)
         if v.mutating:
-            assert DRY_RUN in desc and PRIVACY not in desc
+            assert DRY_RUN in desc
+            assert PRIVACY not in desc
         else:
-            assert PRIVACY in desc and DRY_RUN not in desc
+            assert PRIVACY in desc
+            assert DRY_RUN not in desc
 
 
 def test_list_tools_does_not_build_the_runtime():
@@ -173,7 +176,8 @@ def test_enrich_is_a_dry_run_unless_apply_is_literally_true(rt, apply):
 
 def test_enrich_apply_true_commits(rt):
     out = payload(call(rt, "enrich", {"id": ["r0002"], "apply": True}))
-    assert out["dry_run"] is False and out["updated"] == 1
+    assert out["dry_run"] is False
+    assert out["updated"] == 1
 
 
 def test_apply_on_a_read_tool_is_ignored(rt, monkeypatch):
@@ -221,9 +225,8 @@ def test_runtime_errors_are_tool_errors_not_crashes(tmp_path):
 
     res = with_session(None, fn, factory=factory)
     assert res.isError
-    assert "no runtime" in res.content[0].text and "hint: set POCKETSYNC_MONGO_URI" in (
-        res.content[0].text
-    )
+    assert "no runtime" in res.content[0].text
+    assert "hint: set POCKETSYNC_MONGO_URI" in res.content[0].text
 
 
 def test_unexpected_exceptions_are_tool_errors(rt, monkeypatch):
@@ -232,7 +235,8 @@ def test_unexpected_exceptions_are_tool_errors(rt, monkeypatch):
 
     monkeypatch.setattr(verbs.get("get"), "handler", boom)
     res = call(rt, "get", {"id": "r0001"})
-    assert res.isError and "kaput" in res.content[0].text
+    assert res.isError
+    assert "kaput" in res.content[0].text
 
 
 def test_runtime_is_built_lazily_once(rt):
@@ -355,4 +359,5 @@ def test_cli_mcp_exits_2_with_hint_when_sdk_missing(monkeypatch, capsys):
     assert main(["mcp"]) == 2
     out = capsys.readouterr()
     assert out.out == ""
-    assert out.err.startswith("error:") and "pocketsync[mcp]" in out.err
+    assert out.err.startswith("error:")
+    assert "pocketsync[mcp]" in out.err

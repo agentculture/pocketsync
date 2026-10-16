@@ -196,7 +196,8 @@ def test_reclassified_schema_and_labels_digest_dedupe(tmp_path):
     assert ev["enrichment"]["labels_digest"] == labels_digest(["call"])
     assert ev["enrichment"]["generation"] == 1
     assert ev["sinks"]["mongo"] == {"collection": "recordings", "doc_id": "r1"}
-    assert ev["event_id"] and ev["emitted_at"]
+    assert ev["event_id"]
+    assert ev["emitted_at"]
     assert _reclass(box) is None  # a retry does not double-publish
     assert _reclass(Outbox(tmp_path)) is None  # the key survives a reload
     assert _reclass(box, labels=("todo",))["enrichment"]["labels"] == ["todo"]

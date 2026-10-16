@@ -253,7 +253,8 @@ class _Handler(BaseHTTPRequestHandler):
                     self._drain()
                 self._error(err)
             except Exception as exc:  # noqa: BLE001 - never a traceback to the client
-                access_log.error("internal error: %s", type(exc).__name__)
+                # the type name only: a message or traceback may quote recording content
+                access_log.exception("internal error: %s", type(exc).__name__, exc_info=False)
                 self._error(_internal())
         finally:
             if not self._status:  # no response went out (the client went away mid-request)
@@ -410,7 +411,7 @@ class _Handler(BaseHTTPRequestHandler):
             raise HttpError(400, "bad_request", "truncated request body", "")
         try:
             body = json.loads(raw)
-        except (ValueError, UnicodeDecodeError):
+        except ValueError:  # UnicodeDecodeError is a ValueError
             raise HttpError(
                 400, "bad_request", "body is not valid JSON", "send a JSON object"
             ) from None

@@ -248,7 +248,8 @@ def test_no_verifier_means_no_access_check(runtime, static_dir):
         status, body = Client(srv.port).json("GET", "/api/health", auth=False)
     finally:
         srv.stop()
-    assert status == 200 and body["ok"] is True
+    assert status == 200
+    assert body["ok"] is True
 
 
 # -- read endpoints --------------------------------------------------------------------------
@@ -279,7 +280,8 @@ def test_recordings_bad_query_is_400(client, query):
 
 def test_get_recording_and_404(client):
     status, body = client.json("GET", "/api/recordings/r0001")
-    assert status == 200 and body["id"] == "r0001"
+    assert status == 200
+    assert body["id"] == "r0001"
     assert no_vectors(body)
     status, body = client.json("GET", "/api/recordings/r9999")
     assert status == 404
@@ -331,13 +333,16 @@ def test_search_rejects_both_label_spellings(client):
 def test_enrich_dry_run_then_apply(client, runtime):
     status, body = client.json("POST", "/api/enrich", {"ids": ["r0001"], "only": "classify"})
     assert status == 200
-    assert body["dry_run"] is True and body["ids"] == ["r0001"] and body["updated"] == 0
+    assert body["dry_run"] is True
+    assert body["ids"] == ["r0001"]
+    assert body["updated"] == 0
     assert runtime.store.writes == 0
     status, body = client.json(
         "POST", "/api/enrich", {"ids": ["r0001"], "only": "classify", "apply": True}
     )
     assert status == 200
-    assert body["dry_run"] is False and body["updated"] == 1
+    assert body["dry_run"] is False
+    assert body["updated"] == 1
 
 
 @pytest.mark.parametrize(
@@ -431,7 +436,22 @@ def test_unexpected_error_is_500_without_detail(client, monkeypatch):
     assert status == 500
     body = json.loads(raw)
     assert body["error"]["code"] == "internal"
-    assert b"synthetic secret detail" not in raw and b"Traceback" not in raw
+    assert b"synthetic secret detail" not in raw
+    assert b"Traceback" not in raw
+
+
+def test_unexpected_error_logs_the_type_name_only(client, monkeypatch, caplog):
+    def boom(self, runtime, arguments=None):
+        raise RuntimeError("synthetic secret detail")
+
+    caplog.set_level(logging.INFO, logger=web_server.ACCESS_LOGGER)
+    monkeypatch.setattr(verbs.Verb, "invoke", boom)
+    client.request("GET", "/api/recordings")
+    errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+    assert [r.getMessage() for r in errors] == ["internal error: RuntimeError"]
+    assert not errors[0].exc_info
+    assert "Traceback" not in caplog.text
+    assert "synthetic secret detail" not in caplog.text
 
 
 # -- every endpoint goes through Verb.invoke -------------------------------------------------
@@ -473,10 +493,12 @@ def test_access_log_has_method_path_status_duration_only(client, caplog):
     client.json("GET", "/api/recordings?label=synthetic-query-marker")
     lines = [r.getMessage() for r in caplog.records if r.name == web_server.ACCESS_LOGGER]
     assert len(lines) == 2
-    assert lines[0].startswith("POST /api/chat 200 ") and lines[0].endswith("ms")
+    assert lines[0].startswith("POST /api/chat 200 ")
+    assert lines[0].endswith("ms")
     assert lines[1].startswith("GET /api/recordings 200 ")
     text = "\n".join(lines)
-    assert "zebra" not in text and "synthetic-query-marker" not in text
+    assert "zebra" not in text
+    assert "synthetic-query-marker" not in text
     assert "Synthetic answer" not in text
 
 
@@ -488,7 +510,8 @@ def test_serve_refuses_without_access_config(runtime):
         web_server.serve(runtime, port=0, access_check=True)
     assert ei.value.code == 2
     hint = ei.value.remediation
-    assert "POCKETSYNC_ACCESS_TEAM_DOMAIN" in hint and "POCKETSYNC_ACCESS_AUD" in hint
+    assert "POCKETSYNC_ACCESS_TEAM_DOMAIN" in hint
+    assert "POCKETSYNC_ACCESS_AUD" in hint
     assert "--no-access-check" in hint
 
 
@@ -521,7 +544,8 @@ def test_serve_no_access_check_warns_loudly_and_serves(runtime, monkeypatch, cap
     monkeypatch.setattr(web_server, "run_until_signal", _fake_run(seen))
     assert web_server.serve(runtime, port=0, access_check=False) == 0
     err = capsys.readouterr().err
-    assert "WARNING" in err and "Access" in err
+    assert "WARNING" in err
+    assert "Access" in err
     assert seen["verifier"] is None
     assert seen["result"][0] == 200
 
@@ -554,7 +578,8 @@ def test_refused_post_keeps_the_connection_usable(web):
         assert first.status == 403
         conn.request("GET", "/api/health", headers={"Cf-Access-Jwt-Assertion": token()})
         second = conn.getresponse()
-        assert second.status == 200 and json.loads(second.read())["ok"] is True
+        assert second.status == 200
+        assert json.loads(second.read())["ok"] is True
     finally:
         conn.close()
 

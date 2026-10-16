@@ -49,9 +49,10 @@ def build_server(runtime_factory: Callable[[], Any] | None = None):
 
     def runtime() -> Any:
         if not cache:
+            # a failure is reported to the model and retried on the next call
             try:
                 cache.append(factory())
-            except Exception as exc:  # noqa: BLE001 - reported to the model, retried next call
+            except Exception as exc:  # noqa: BLE001
                 raise tools.runtime_error(exc) from exc
         return cache[0]
 

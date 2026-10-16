@@ -49,13 +49,16 @@ def ids(res):
 def test_no_selector_refused(store):
     with pytest.raises(CliError) as e:
         plan_enrich(store)
-    assert e.value.code == 1 and e.value.remediation
+    assert e.value.code == 1
+    assert e.value.remediation
 
 
 def test_all_skips_deleted(store):
     res = plan_enrich(store, all=True)
     assert ids(res) == ["a", "b", "c"]
-    assert res["count"] == 3 and res["dry_run"] is True and res["updated"] == 0
+    assert res["count"] == 3
+    assert res["dry_run"] is True
+    assert res["updated"] == 0
 
 
 def test_since_until(store):
@@ -99,9 +102,11 @@ def test_estimates(store):
     assert plan_enrich(store, all=True)["estimated_gateway_calls"] == 6
     assert plan_enrich(store, all=True, only="all")["mode"] == "full"
     r = plan_enrich(store, all=True, only="classify")
-    assert r["mode"] == "classify" and r["estimated_gateway_calls"] == 3
+    assert r["mode"] == "classify"
+    assert r["estimated_gateway_calls"] == 3
     r = plan_enrich(store, all=True, only="embed")
-    assert r["mode"] == "embed" and r["estimated_gateway_calls"] == 3
+    assert r["mode"] == "embed"
+    assert r["estimated_gateway_calls"] == 3
 
 
 def test_dry_run_changes_nothing(store, db):
@@ -113,11 +118,14 @@ def test_dry_run_changes_nothing(store, db):
 
 def test_apply_requeues(store, db):
     res = plan_enrich(store, label="meeting", only="classify", apply=True)
-    assert res["dry_run"] is False and res["updated"] == 2
+    assert res["dry_run"] is False
+    assert res["updated"] == 2
     col = db[vindex.COLLECTION]
     for rid in ("a", "b"):
         e = col.find_one({"_id": rid})["enrichment"]
-        assert e["status"] == "pending" and e["mode"] == "classify" and e["generation"] == 1
+        assert e["status"] == "pending"
+        assert e["mode"] == "classify"
+        assert e["generation"] == 1
     assert col.find_one({"_id": "c"})["enrichment"]["status"] == "pending"
     assert "mode" not in col.find_one({"_id": "c"})["enrichment"]
     assert col.find_one({"_id": "d"})["enrichment"]["status"] == "done"
@@ -125,4 +133,5 @@ def test_apply_requeues(store, db):
 
 def test_apply_nothing_selected(store):
     res = plan_enrich(store, label="nolabel", apply=True)
-    assert res["count"] == 0 and res["updated"] == 0
+    assert res["count"] == 0
+    assert res["updated"] == 0

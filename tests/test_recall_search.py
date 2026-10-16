@@ -110,7 +110,8 @@ def test_label_filter_goes_in_parent_filter_for_chunks_and_filter_for_summary(co
     assert "parentFilter" not in summ
     assert chunk["parentFilter"] == summ["filter"]
     flt = json.dumps(chunk["parentFilter"])
-    assert vindex.PATH_LABELS in flt and "meeting" in flt
+    assert vindex.PATH_LABELS in flt
+    assert "meeting" in flt
     assert vindex.PATH_DELETED in flt
     assert chunk["queryVector"] == QVEC == summ["queryVector"]
 
@@ -192,19 +193,21 @@ def test_since_until_and_has_action_items_filters(col) -> None:
 
 
 def test_invalid_arguments_raise_cli_error(col) -> None:
+    gw, fs = FakeGateway(), FakeSearch()
     with pytest.raises(CliError):
-        search(col, FakeGateway(), "x", limit=0, search_fn=FakeSearch())
+        search(col, gw, "x", limit=0, search_fn=fs)
     with pytest.raises(CliError):
-        search(col, FakeGateway(), "x", since="yesterday", search_fn=FakeSearch())
+        search(col, gw, "x", since="yesterday", search_fn=fs)
     with pytest.raises(CliError):
-        search(col, FakeGateway(), "   ", search_fn=FakeSearch())
+        search(col, gw, "   ", search_fn=fs)
 
 
 def test_accepts_a_mongo_sink_as_store() -> None:
     sink = MongoSink(mongomock.MongoClient()["pocketsync"])
     seen = []
     search(sink, FakeGateway(), "x", search_fn=lambda c, p: seen.append(c) or [])
-    assert seen and all(c is sink.collection for c in seen)
+    assert seen
+    assert all(c is sink.collection for c in seen)
 
 
 def _seed_keyword(col) -> None:

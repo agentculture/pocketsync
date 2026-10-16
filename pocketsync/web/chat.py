@@ -168,8 +168,8 @@ def _search(runtime: Any, req: ChatRequest) -> dict[str, Any]:
     return verb.invoke(runtime, args)
 
 
-def _select(result: dict[str, Any]) -> list[dict[str, Any]]:
-    """The best chunks across results, at most MAX_SOURCES and MAX_CONTEXT_CHARS of text."""
+def _candidates(result: dict[str, Any]) -> list[tuple[float, int, dict[str, Any]]]:
+    """Every non-blank chunk as ``(score, arrival order, source)``, best first."""
     candidates: list[tuple[float, int, dict[str, Any]]] = []
     for hit in result.get("results") or []:
         for ch in hit.get("chunks") or []:
@@ -186,6 +186,12 @@ def _select(result: dict[str, Any]) -> list[dict[str, Any]]:
             }
             candidates.append((float(ch.get("score") or 0.0), len(candidates), source))
     candidates.sort(key=lambda c: (-c[0], c[1]))
+    return candidates
+
+
+def _select(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """The best chunks across results, at most MAX_SOURCES and MAX_CONTEXT_CHARS of text."""
+    candidates = _candidates(result)
     sources: list[dict[str, Any]] = []
     budget = MAX_CONTEXT_CHARS
     for _, _, source in candidates:

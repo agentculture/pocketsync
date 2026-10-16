@@ -74,7 +74,9 @@ def test_prompt_marks_sources_as_untrusted_quoted_data(rt):
     system = messages[0]
     assert system["role"] == "system"
     low = system["content"].lower()
-    assert "untrusted" in low and "never" in low and "instruction" in low
+    assert "untrusted" in low
+    assert "never" in low
+    assert "instruction" in low
     assert "[n]" in system["content"] or "[1]" in system["content"]
     # the injected text lives only inside the quoted sources, never in the system prompt
     assert "PWNED" not in system["content"]
@@ -115,7 +117,8 @@ def test_context_is_capped_at_about_6000_chars(rt):
 def test_a_single_oversized_chunk_is_truncated_not_dropped(rt):
     put(rt, "r0001", [chunk(0, "z" * 9000, 0.0)])
     _, sources = chat.retrieve(rt, {"question": "anything"})
-    assert len(sources) == 1 and len(sources[0]["text"]) == chat.MAX_CONTEXT_CHARS
+    assert len(sources) == 1
+    assert len(sources[0]["text"]) == chat.MAX_CONTEXT_CHARS
 
 
 def test_history_keeps_last_six_valid_turns(rt):
@@ -239,7 +242,8 @@ def test_chat_lane_down_raises_with_citations(rt, error):
     with pytest.raises(chat.ChatUnavailable) as ei:
         chat.answer(rt, {"question": "anything"})
     exc = ei.value
-    assert [c["id"] for c in exc.citations] and len(exc.citations) == 3
+    assert [c["id"] for c in exc.citations]
+    assert len(exc.citations) == 3
     assert exc.retrieval == {"mode": "vector", "count": 3}
 
 
@@ -261,7 +265,8 @@ def test_http_chat_lane_down_is_503_with_citations(client, runtime):
     status, body = client.json("POST", "/api/chat", {"question": "budgets?"})
     assert status == 503
     assert body["error"]["code"] == "chat_unavailable"
-    assert body["citations"] and all("id" in c for c in body["citations"])
+    assert body["citations"]
+    assert all("id" in c for c in body["citations"])
 
 
 def test_http_chat_bad_body_is_400(client):
@@ -281,5 +286,6 @@ def test_http_chat_zero_hits(tmp_path):
     finally:
         srv.stop()
     assert status == 200
-    assert body["citations"] == [] and body["answer"] == ""
+    assert body["citations"] == []
+    assert body["answer"] == ""
     assert rt.fake_chat.calls == []

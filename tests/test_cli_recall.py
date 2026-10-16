@@ -142,7 +142,8 @@ def test_enrich_selectors(rt, capsys, argv, expected):
 def test_enrich_without_selector_is_a_user_error(rt, capsys):
     assert main(["enrich"]) == 1
     err = capsys.readouterr().err
-    assert err.startswith("error:") and "hint:" in err
+    assert err.startswith("error:")
+    assert "hint:" in err
 
 
 def test_enrich_bad_only_choice_is_a_user_error(rt, capsys):
@@ -247,7 +248,8 @@ def test_recordings_newest_first_and_filters(rt, capsys):
 def test_recordings_text(rt, capsys):
     assert main(["recordings"]) == 0
     text = capsys.readouterr().out
-    assert "r0003" in text and "Synthetic r0003" in text
+    assert "r0003" in text
+    assert "Synthetic r0003" in text
 
 
 def test_actions_open_only_by_default(rt, capsys):

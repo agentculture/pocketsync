@@ -207,8 +207,9 @@ def test_missing_exp_is_malformed():
 
 def test_reason_never_carries_token_material():
     tok = token(claims(aud=["someone-else"]))
+    v = verifier()
     with pytest.raises(VerificationError) as ei:
-        verifier().verify(tok)
+        v.verify(tok)
     assert tok.split(".")[1] not in str(ei.value)
 
 
@@ -318,8 +319,9 @@ def test_config_both_unset_is_off():
 
 @pytest.mark.parametrize("missing", sorted(ENV))
 def test_config_partial_is_refused(missing):
+    env = {k: v for k, v in ENV.items() if k != missing}
     with pytest.raises(AccessConfigError) as ei:
-        AccessConfig.from_env({k: v for k, v in ENV.items() if k != missing})
+        AccessConfig.from_env(env)
     assert "together" in str(ei.value)
 
 

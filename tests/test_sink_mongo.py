@@ -402,7 +402,8 @@ def test_set_deferred_persists_reason_and_set_enrichment_clears(sink, db):
     assert sink.set_deferred("r1", h, 7, "x", 1.0) is False
     assert sink.set_enrichment("r1", h, {"status": "done"}, expected_generation=0)
     e = enr(db)
-    assert "deferred_reason" not in e and "next_attempt_at" not in e
+    assert "deferred_reason" not in e
+    assert "next_attempt_at" not in e
     # only a pending doc can be deferred
     assert sink.set_deferred("r1", h, 0, "x", 1.0) is False
 
@@ -456,7 +457,8 @@ def test_content_change_resets_requeue_and_deferral_state(sink, db):
     sink.set_deferred("r1", h, 1, "503", 1000.0)
     sink.put_recording(rec(summary="re-processed"))
     e = enr(db)
-    assert e["status"] == ENRICHMENT_PENDING and e["attempts"] == 0
+    assert e["status"] == ENRICHMENT_PENDING
+    assert e["attempts"] == 0
     for gone in ("mode", "deferred_reason", "next_attempt_at"):
         assert gone not in e
     # generation is monotonic: a content change never rewinds it (no ABA on the CAS)

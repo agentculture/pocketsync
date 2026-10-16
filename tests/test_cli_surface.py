@@ -112,9 +112,12 @@ def test_server_verbs_exit_2_when_server_absent(monkeypatch, capsys, argv, modul
     assert out.out == ""  # stdout stays clean (reserved for the MCP protocol)
     if as_json:
         err = json.loads(out.err)
-        assert err["code"] == 2 and hint in err["remediation"]
+        assert err["code"] == 2
+        assert hint in err["remediation"]
     else:
-        assert out.err.startswith("error:") and "hint:" in out.err and hint in out.err
+        assert out.err.startswith("error:")
+        assert "hint:" in out.err
+        assert hint in out.err
 
 
 def test_importing_the_cli_does_not_import_the_servers():
