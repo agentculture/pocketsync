@@ -2,7 +2,7 @@
   "plan_slug": "pocket-to-mongodb-near-realtime",
   "schema_version": 2,
   "created": "2026-10-14T20:34:54Z",
-  "updated": "2026-10-15T05:33:09Z",
+  "updated": "2026-10-16T11:58:27Z",
   "deviations": [
     {
       "id": "d1",
@@ -1148,7 +1148,7 @@
       ],
       "evidence_refs": [],
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false
     },
     {
@@ -1164,7 +1164,7 @@
         "e51"
       ],
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false
     },
     {
@@ -1178,7 +1178,7 @@
         "e26"
       ],
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false
     }
   ],
