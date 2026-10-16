@@ -81,6 +81,14 @@ Service bar automated access "for unauthorized purposes". See the spec in
 Write verbs are dry-run by default and commit only with `--apply`. Every verb
 takes `--json`.
 
+Secrets come from the environment, and only from the environment. If a runtime
+verb (`auth`, `list`, `sync`, `watch`, `serve`, `status`, `reembed`, `doctor`)
+finds one unset, and the operator's `grant` store has a secret of exactly that
+name, for example `POCKETSYNC_MONGO_URI`, `pocketsync` re-runs itself under
+`grant run --inject`. So a bare `pocketsync status` works on the serving host
+even though the secrets are hidden. Set `POCKETSYNC_NO_GRANT=1` to turn this
+off.
+
 | Verb | What it does |
 |------|-----------------|
 | `pocketsync auth` | Verify the Pocket API key with one list call. |
