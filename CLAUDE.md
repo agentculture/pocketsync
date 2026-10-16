@@ -17,11 +17,12 @@ output layout, the mongo document shape and the event stream are a **public
 contract** other code builds against; treat changes to them like API changes.
 
 Non-goals: no re-running STT (Pocket's transcript is the source of truth; we
-store the audio as files), no routing to downstream destinations, no UI.
+store the audio as files), no routing to downstream destinations, and no UI
+beyond a thin client over the CLI/MCP surface.
 
-## Status — sync engine built (0.11.0), live deploy pending
+## Status — sync engine and talk-to-recordings built (0.12.0), live deploy pending
 
-The Pocket-to-MongoDB build is on disk as of 0.11.0. It includes:
+The Pocket-to-MongoDB build is on disk as of 0.12.0. It includes:
 
 - the official-API Pocket adapter (`pocketsync/pocket/`);
 - the signed webhook receiver (`pocketsync/webhook/`), with a durable inbox
@@ -35,10 +36,21 @@ The Pocket-to-MongoDB build is on disk as of 0.11.0. It includes:
 - the event outbox and publisher (`pocketsync/events.py`), and the `serve`
   composition (`pocketsync/serve.py`);
 - the CLI verbs `auth`, `list`, `sync`, `watch`, `serve`, `status` and
-  `reembed`, next to the introspection verbs (`whoami`, `learn`, `explain`,
+  `reembed`;
+- the talk-to-recordings verbs `enrich`, `search`, `get`, `transcript`,
+  `recordings` and `actions`, defined once in the registry
+  `pocketsync/verbs.py` (handlers in `pocketsync/recall/`);
+- the MCP server `pocketsync mcp` (`pocketsync/mcp/`, extra
+  `pocketsync[mcp]`; its tools are those same verbs) and the private web page
+  `pocketsync web` (`pocketsync/web/`: server, chat, Access JWT check, static
+  page; contract in `docs/web-api.md`);
+- enrichment modes (full/classify/embed), generation-guarded CAS writes,
+  persisted deferrals (`status` reports `enrichment_deferred`) and the
+  `pocketsync.recording.reclassified` event;
+- all of the above next to the introspection verbs (`whoami`, `learn`, `explain`,
   `overview`, `doctor`, `cli overview`).
 
-Deploy files are in `deploy/`, and the runbooks are in `docs/operations/`.
+Deploy files are in `deploy/` (including `systemd/pocketsync-web.service`), and the runbooks are in `docs/operations/` (including `pocketchat-culture-dev.md`).
 
 Still *(planned)*:
 
@@ -121,6 +133,18 @@ code should slot into this shape rather than invent a parallel one.
   lost if the broker is down. Each event carries the recording id, sink paths,
   content hash and `created`/`updated`. The schema is documented in
   `README.md` and is what culture-rules builds against.
+- **Talk to recordings.** One registry (`pocketsync/verbs.py`) feeds the CLI,
+  the MCP server and the web API, so no surface may add a verb, parameter or
+  write path of its own (`tests/test_surface_parity.py`). UI is only a thin
+  client over the CLI/MCP surface. Privacy model: all recordings are
+  searchable by default (operator decision, internal network);
+  `exclude_sensitive` is opt-in; the chat model (`POCKETSYNC_CHAT_MODEL`,
+  configurable) and embeddings run on the operator's lobes gateway at
+  localhost; the site is behind Cloudflare Access (operator email only, no
+  Bypass) and the server verifies the Access JWT on every request
+  (`POCKETSYNC_ACCESS_TEAM_DOMAIN`, `POCKETSYNC_ACCESS_AUD`,
+  `POCKETSYNC_SITE_ORIGIN`, `POCKETSYNC_WEB_PORT`); MCP tools put the
+  operator's own content into the calling model's context.
 - **CLI verbs**:
   - `auth` verifies the `pk_` key.
   - `list` shows remote recordings with their sync status.
@@ -132,6 +156,12 @@ code should slot into this shape rather than invent a parallel one.
   - `status` shows the watermark, the last run, webhook health, the
     enrichment backlog and the last errors.
   - `reembed` re-queues recordings embedded with another model.
+  - `enrich` re-queues selected recordings (`--all/--since/--until/--id/
+    --label/--status`, mode `--only all|classify|embed`; dry run unless
+    `--apply`).
+  - `search`, `get`, `transcript`, `recordings` and `actions` read the store.
+  - `mcp` serves those verbs as MCP tools over stdio; `web [--port]
+    [--no-access-check]` runs the pocketchat site on loopback.
 
   **Write verbs are dry-run by
   default and commit only with `--apply`**, and every verb takes `--json`.
@@ -139,7 +169,8 @@ code should slot into this shape rather than invent a parallel one.
 Runtime dependencies are currently **zero** (`dependencies = []`). Third-party
 clients go behind optional extras and are imported lazily, so the core and the
 `local` sink stay dependency-free. `pymongo` is behind `pocketsync[mongo]`, the
-events-cli client is behind `pocketsync[events]`, and `boto3` will be behind
+events-cli client is behind `pocketsync[events]`, the MCP SDK is behind
+`pocketsync[mcp]`, and `boto3` will be behind
 `pocketsync[s3]` *(planned)*. Test-only libraries such as `moto` or
 `mongomock` go in the `dev` dependency group.
 
