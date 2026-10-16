@@ -288,10 +288,12 @@ def test_reclassify_stale_requeues_only_docs_classified_under_another_taxonomy(s
 class Flaky(FakeGateway):
     """Fails embed with a non-retryable CliError while ``broken`` is True (e.g. bad JSON)."""
 
-    broken = True
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.broken = True
 
     def embed(self, texts):
-        if Flaky.broken:
+        if self.broken:
             raise CliError(2, "gateway returned invalid JSON", "check gateway")
         return super().embed(texts)
 
@@ -308,11 +310,11 @@ def test_error_doc_is_retried_after_backoff_and_heals(store, outbox):
     from pocketsync.enrich.worker import ERROR_RETRY_BASE
 
     store.put_recording(rec())
-    Flaky.broken, wall = True, Wall()
-    w = EnrichmentWorker(store, Flaky(), outbox, wall_clock=wall)
+    gw, wall = Flaky(), Wall()
+    w = EnrichmentWorker(store, gw, outbox, wall_clock=wall)
     assert w.run_once()["errors"] == 1
     assert doc(store)["enrichment"]["status"] == "error"
-    Flaky.broken = False  # the gateway is back
+    gw.broken = False  # the gateway is back
     assert w.run_once()["done"] == 0  # not due yet
     wall.t += ERROR_RETRY_BASE + 1
     assert w.run_once()["done"] == 1
@@ -326,8 +328,8 @@ def test_error_backoff_grows_and_is_capped(store, outbox):
     from pocketsync.enrich.worker import ERROR_RETRY_BASE, ERROR_RETRY_MAX
 
     store.put_recording(rec())
-    Flaky.broken, wall = True, Wall()
-    w = EnrichmentWorker(store, Flaky(), outbox, wall_clock=wall)
+    gw, wall = Flaky(), Wall()
+    w = EnrichmentWorker(store, gw, outbox, wall_clock=wall)
     delays = []
     for _ in range(6):
         w.run_once()
@@ -343,8 +345,8 @@ def test_error_becomes_terminal_after_max_attempts(store, outbox):
     from pocketsync.sinks.mongo import MAX_ENRICHMENT_ATTEMPTS
 
     store.put_recording(rec())
-    Flaky.broken, wall = True, Wall()
-    w = EnrichmentWorker(store, Flaky(), outbox, wall_clock=wall)
+    gw, wall = Flaky(), Wall()
+    w = EnrichmentWorker(store, gw, outbox, wall_clock=wall)
     for _ in range(MAX_ENRICHMENT_ATTEMPTS + 3):
         w.run_once()
         wall.t += 10 * 24 * 3600
@@ -356,8 +358,7 @@ def test_error_becomes_terminal_after_max_attempts(store, outbox):
 
 def test_content_change_resets_the_error_retry_state(store, outbox):
     store.put_recording(rec())
-    Flaky.broken, wall = True, Wall()
-    EnrichmentWorker(store, Flaky(), outbox, wall_clock=wall).run_once()
+    EnrichmentWorker(store, Flaky(), outbox, wall_clock=Wall()).run_once()
     store.put_recording(rec(summary="Pocket re-processed it"))
     e = doc(store)["enrichment"]
     assert e["status"] == "pending"

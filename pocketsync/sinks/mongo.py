@@ -47,6 +47,7 @@ PATH_NEXT_ATTEMPT = "enrichment.next_attempt_at"
 #: An ``error`` doc is retried automatically (on a backoff, see the worker) until it has failed
 #: this many times; after that it stays ``error`` and ``status``/``doctor`` report it as failed.
 MAX_ENRICHMENT_ATTEMPTS = 10
+_UNSET = "$unset"
 
 # Fields set_enrichment may write (under ``enrichment.``).
 ENRICHMENT_FIELDS = frozenset(
@@ -166,7 +167,7 @@ class MongoSink:
                 PATH_ENRICHMENT_STATUS: ENRICHMENT_PENDING,
                 "enrichment.attempts": 0,
             },
-            "$unset": {f"enrichment.{k}": "" for k in sorted(_DERIVED)},
+            _UNSET: {f"enrichment.{k}": "" for k in sorted(_DERIVED)},
             "$setOnInsert": {
                 "landed_at": now,
                 vindex.PATH_DELETED: False,
@@ -247,7 +248,7 @@ class MongoSink:
             return False
         update: dict[str, Any] = {"$set": {f"enrichment.{k}": v for k, v in payload.items()}}
         if "next_attempt_at" not in payload:
-            update["$unset"] = {PATH_NEXT_ATTEMPT: ""}  # a success clears any retry schedule
+            update[_UNSET] = {PATH_NEXT_ATTEMPT: ""}  # a success clears any retry schedule
         res = self._col.update_one({"_id": recording_id, "content_hash": expected_hash}, update)
         return res.matched_count == 1
 
@@ -269,7 +270,7 @@ class MongoSink:
         }
         update: dict[str, Any] = {"$set": fields, "$inc": {PATH_ENRICHMENT_ATTEMPTS: 1}}
         if next_attempt_at is None:
-            update["$unset"] = {PATH_NEXT_ATTEMPT: ""}
+            update[_UNSET] = {PATH_NEXT_ATTEMPT: ""}
         else:
             fields[PATH_NEXT_ATTEMPT] = float(next_attempt_at)
         res = self._col.update_one(
