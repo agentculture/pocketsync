@@ -31,16 +31,30 @@ def enrichment_backlog(collection: Any) -> int:
     )
 
 
+def enrichment_errors(collection: Any) -> tuple[int, int]:
+    """``(retrying, failed)``: ``error`` docs still under the attempt cap, and those past it."""
+    from pocketsync.sinks.mongo import ENRICHMENT_ERROR, MAX_ENRICHMENT_ATTEMPTS
+
+    base = {PATH_ENRICHMENT_STATUS: ENRICHMENT_ERROR, PATH_DELETED: {"$ne": True}}
+    cap = {"enrichment.attempts": {"$gte": MAX_ENRICHMENT_ATTEMPTS}}
+    failed = int(collection.count_documents({**base, **cap}))
+    return int(collection.count_documents(base)) - failed, failed
+
+
 def snapshot(rt: Any) -> dict[str, Any]:
     rt.settings.require("mongo_uri")
     state = rt.state()
     errors = state.errors()
+    collection = rt.store_sink().collection
+    retrying, failed = enrichment_errors(collection)
     return {
         "watermark": state.get_watermark(),
         "last_run": state.last_run(),
         "last_webhook_at": state.get_last_webhook_at(),
         "webhook_missed": int(state.counters().get(COUNTER_WEBHOOK_MISSED, 0)),
-        "enrichment_backlog": enrichment_backlog(rt.store_sink().collection),
+        "enrichment_backlog": enrichment_backlog(collection),
+        "enrichment_retrying": retrying,
+        "enrichment_failed": failed,
         "error_count": len(errors),
         "last_errors": errors[-LAST_ERRORS:],
     }
@@ -65,6 +79,8 @@ def cmd_status(args: argparse.Namespace) -> None:
             ("last webhook", snap["last_webhook_at"]),
             ("webhook_missed", snap["webhook_missed"]),
             ("enrichment backlog", snap["enrichment_backlog"]),
+            ("enrichment retrying", snap["enrichment_retrying"]),
+            ("enrichment failed", snap["enrichment_failed"]),
             ("errors kept", snap["error_count"]),
         ]
     )

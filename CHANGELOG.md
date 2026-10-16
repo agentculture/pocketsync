@@ -10,6 +10,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Runtime verbs (auth, list, sync, watch, serve, status, reembed, doctor) re-run under `grant run --inject` when a secret setting is unset and the grant store holds a same-named secret, so a bare `pocketsync status` works with hidden secrets; `POCKETSYNC_NO_GRANT=1` opts out
+- Enrichment self-heals after gateway outages: an `error` doc is retried automatically on a persisted backoff (1 min doubling to 6 h, 10 attempts); `status` reports `enrichment_retrying`/`enrichment_failed` and `doctor` warns on failed
 
 ### Changed
 

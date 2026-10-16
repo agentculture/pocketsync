@@ -132,6 +132,8 @@ reported by the informational harness-prompts check and never substituted.
   expected), warns if no verified webhook arrived in 24 hours.
 - `webhook_missed`, `enrichment_backlog`, `recent_errors` — the `status`
   numbers; warn when non-zero, above 100, or newer than a day.
+- `enrichment_failed` — warns when a recording failed enrichment past the
+  retry cap (the ones still retrying are counted, not warned).
 
 With nothing configured, a single `runtime_config` info check replaces the
 runtime checks and nothing is probed (a bare wheel install exits 0).
@@ -275,6 +277,8 @@ Read-only health of the sync and webhook paths, from the state store:
   Access bypass gone, or the secret rotated. It moves within one reconcile
   interval;
 - `enrichment_backlog` — documents pending enrichment;
+- `enrichment_retrying` / `enrichment_failed` — `error` documents that are
+  retried automatically on a backoff, and those past the 10-attempt cap;
 - `last_errors` — the most recent recorded errors (`error_count` kept).
 
 ## Usage

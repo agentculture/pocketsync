@@ -280,3 +280,86 @@ def test_reclassify_stale_requeues_only_docs_classified_under_another_taxonomy(s
     assert doc(store, "r1")["enrichment"]["status"] == "pending"
     assert doc(store, "r2")["enrichment"]["status"] == "done"
     assert w.reclassify_stale(TAX) == 0  # r1 is pending now; r2 is never re-queued
+
+
+# -- self-healing errors: a gateway outage must never strand a recording ------------------
+
+
+class Flaky(FakeGateway):
+    """Fails embed with a non-retryable CliError while ``broken`` is True (e.g. bad JSON)."""
+
+    broken = True
+
+    def embed(self, texts):
+        if Flaky.broken:
+            raise CliError(2, "gateway returned invalid JSON", "check gateway")
+        return super().embed(texts)
+
+
+class Wall:
+    def __init__(self):
+        self.t = 1_000_000.0
+
+    def __call__(self):
+        return self.t
+
+
+def test_error_doc_is_retried_after_backoff_and_heals(store, outbox):
+    from pocketsync.enrich.worker import ERROR_RETRY_BASE
+
+    store.put_recording(rec())
+    Flaky.broken, wall = True, Wall()
+    w = EnrichmentWorker(store, Flaky(), outbox, wall_clock=wall)
+    assert w.run_once()["errors"] == 1
+    assert doc(store)["enrichment"]["status"] == "error"
+    Flaky.broken = False  # the gateway is back
+    assert w.run_once()["done"] == 0  # not due yet
+    wall.t += ERROR_RETRY_BASE + 1
+    assert w.run_once()["done"] == 1
+    e = doc(store)["enrichment"]
+    assert e["status"] == "done"
+    assert "next_attempt_at" not in e
+    assert len(events(outbox)) == 1
+
+
+def test_error_backoff_grows_and_is_capped(store, outbox):
+    from pocketsync.enrich.worker import ERROR_RETRY_BASE, ERROR_RETRY_MAX
+
+    store.put_recording(rec())
+    Flaky.broken, wall = True, Wall()
+    w = EnrichmentWorker(store, Flaky(), outbox, wall_clock=wall)
+    delays = []
+    for _ in range(6):
+        w.run_once()
+        nxt = doc(store)["enrichment"]["next_attempt_at"]
+        delays.append(nxt - wall.t)
+        wall.t = nxt
+    assert delays[0] == ERROR_RETRY_BASE
+    assert delays[1] == 2 * ERROR_RETRY_BASE
+    assert all(d <= ERROR_RETRY_MAX for d in delays)
+
+
+def test_error_becomes_terminal_after_max_attempts(store, outbox):
+    from pocketsync.sinks.mongo import MAX_ENRICHMENT_ATTEMPTS
+
+    store.put_recording(rec())
+    Flaky.broken, wall = True, Wall()
+    w = EnrichmentWorker(store, Flaky(), outbox, wall_clock=wall)
+    for _ in range(MAX_ENRICHMENT_ATTEMPTS + 3):
+        w.run_once()
+        wall.t += 10 * 24 * 3600
+    e = doc(store)["enrichment"]
+    assert e["status"] == "error"
+    assert e["attempts"] == MAX_ENRICHMENT_ATTEMPTS
+    assert store.pending_enrichment(10, now=wall.t) == []
+
+
+def test_content_change_resets_the_error_retry_state(store, outbox):
+    store.put_recording(rec())
+    Flaky.broken, wall = True, Wall()
+    EnrichmentWorker(store, Flaky(), outbox, wall_clock=wall).run_once()
+    store.put_recording(rec(summary="Pocket re-processed it"))
+    e = doc(store)["enrichment"]
+    assert e["status"] == "pending"
+    assert e["attempts"] == 0
+    assert "next_attempt_at" not in e

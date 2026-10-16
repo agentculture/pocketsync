@@ -164,6 +164,14 @@ Behavior consumers can rely on:
   field, so a stale vector never describes new content.
 - Enrichment is written compare-and-set on `content_hash`: a result computed
   from superseded content is dropped.
+- Enrichment heals itself after a gateway outage.
+  - A lane that is down or loading (404, 429, 5xx, unreachable) keeps the
+    recording `pending`; it is retried with backoff.
+  - Any other failure marks it `error`, with `attempts` and
+    `next_attempt_at`, and it is retried automatically from 1 minute up to
+    every 6 hours.
+  - After 10 failures it stays `error`. `pocketsync status` counts
+    `enrichment_retrying` and `enrichment_failed`, and `doctor` warns.
 - Deleted and merged recordings are tombstoned or marked, never purged.
   Filter on `deleted_in_pocket` and `merged_into` when querying.
 - Mongo stores file references only, never audio bytes.
