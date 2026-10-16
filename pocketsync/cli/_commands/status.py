@@ -33,10 +33,14 @@ def enrichment_backlog(collection: Any) -> int:
 
 def enrichment_errors(collection: Any) -> tuple[int, int]:
     """``(retrying, failed)``: ``error`` docs still under the attempt cap, and those past it."""
-    from pocketsync.sinks.mongo import ENRICHMENT_ERROR, MAX_ENRICHMENT_ATTEMPTS
+    from pocketsync.sinks.mongo import (
+        ENRICHMENT_ERROR,
+        MAX_ENRICHMENT_ATTEMPTS,
+        PATH_ENRICHMENT_ATTEMPTS,
+    )
 
     base = {PATH_ENRICHMENT_STATUS: ENRICHMENT_ERROR, PATH_DELETED: {"$ne": True}}
-    cap = {"enrichment.attempts": {"$gte": MAX_ENRICHMENT_ATTEMPTS}}
+    cap = {PATH_ENRICHMENT_ATTEMPTS: {"$gte": MAX_ENRICHMENT_ATTEMPTS}}
     failed = int(collection.count_documents({**base, **cap}))
     return int(collection.count_documents(base)) - failed, failed
 

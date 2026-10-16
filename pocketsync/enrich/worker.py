@@ -45,6 +45,7 @@ from pocketsync.sinks.mongo import (
     ENRICHMENT_DONE,
     ENRICHMENT_PENDING,
     MAX_ENRICHMENT_ATTEMPTS,
+    PATH_ENRICHMENT_ATTEMPTS,
     PATH_ENRICHMENT_STATUS,
     MongoSink,
 )
@@ -75,7 +76,7 @@ def mark_for_reclassification(store: MongoSink, current_taxonomy_version: str) -
             PATH_ENRICHMENT_STATUS: ENRICHMENT_DONE,
             PATH_TAXONOMY_VERSION: {"$exists": True, "$ne": current_taxonomy_version},
         },
-        {"$set": {PATH_ENRICHMENT_STATUS: ENRICHMENT_PENDING}},
+        {"$set": {PATH_ENRICHMENT_STATUS: ENRICHMENT_PENDING, PATH_ENRICHMENT_ATTEMPTS: 0}},
     )
     return int(res.modified_count)
 

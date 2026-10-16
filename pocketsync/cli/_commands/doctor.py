@@ -325,7 +325,8 @@ def _health_checks(state: Any, collection: Any, now: datetime) -> list[dict[str,
             "warn" if failed else "ok",
             f"{failed} recording(s) failed enrichment past the retry cap; "
             f"{retrying} retrying automatically",
-            "fix the cause (see status errors), then re-queue them: issue #8 (pocketsync enrich)",
+            "fix the cause (see 'pocketsync status' errors); a content change in Pocket re-queues "
+            "a recording, and an on-demand re-queue command is planned (issue #8)",
         )
     )
     cutoff = now - timedelta(hours=RECENT_ERROR_HOURS)

@@ -364,3 +364,29 @@ def test_content_change_resets_the_error_retry_state(store, outbox):
     assert e["status"] == "pending"
     assert e["attempts"] == 0
     assert "next_attempt_at" not in e
+
+
+def test_legacy_error_doc_without_a_schedule_is_retried(store, outbox):
+    # Review of PR #7 (1): docs that went to `error` under 0.11.0 have no next_attempt_at.
+    store.put_recording(rec())
+    store.collection.update_one(
+        {"_id": "r1"}, {"$set": {"enrichment.status": "error", "enrichment.attempts": 1}}
+    )
+    assert EnrichmentWorker(store, FakeGateway(), outbox, wall_clock=Wall()).run_once()["done"] == 1
+
+
+def test_success_and_requeues_reset_the_attempt_counter(store, outbox):
+    # Review of PR #7 (2): the cap counts consecutive failures, not lifetime ones.
+    store.put_recording(rec())
+    gw, wall = Flaky(), Wall()
+    w = EnrichmentWorker(store, gw, outbox, wall_clock=wall)
+    for _ in range(3):
+        w.run_once()
+        wall.t += 10 * 24 * 3600
+    gw.broken = False
+    w.run_once()
+    assert doc(store)["enrichment"]["status"] == "done"
+    assert doc(store)["enrichment"]["attempts"] == 0
+    store.collection.update_one({"_id": "r1"}, {"$set": {"enrichment.attempts": 7}})
+    mark_for_reclassification(store, "other-tax")
+    assert doc(store)["enrichment"]["attempts"] == 0

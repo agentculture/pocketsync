@@ -98,3 +98,43 @@ def test_test_session_opts_out(monkeypatch):
     import os
 
     assert os.environ.get(_grant.OPT_OUT) == "1"
+
+
+@pytest.mark.parametrize("stdout", ['["POCKETSYNC_MONGO_URI"]', '"locked"', "null", "42"])
+def test_non_object_grant_json_is_ignored(stdout):
+    # Review of PR #7 (3): valid JSON that is not an object must not crash main().
+    def run(cmd, **kw):
+        return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+
+    assert call(["status"], {}, run=run) is None
+
+
+def test_exec_failure_falls_through_to_the_normal_path():
+    # Review of PR #7 (4): grant vanishing between which() and exec must not leak a traceback.
+    def broken_exec(file, args, env):
+        raise FileNotFoundError(file)
+
+    result = _grant.maybe_reexec(
+        ["status"],
+        env={},
+        which=lambda n: "/opt/bin/grant",
+        run=fake_run(ALL),
+        execvpe=broken_exec,
+    )
+    assert result is None
+
+
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_help_never_spawns_grant(flag):
+    # Review of PR #7 (6): help must not pay for a `grant list`.
+    def run(cmd, **kw):
+        raise AssertionError("grant must not be called for help")
+
+    assert call(["status", flag], {}, run=run) is None
+
+
+def test_secret_names_come_from_the_settings_layer():
+    # Review of PR #7 (7): one source of truth for which settings are secrets.
+    from pocketsync import config
+
+    assert set(_grant.SECRET_ENV) == {config.ENV_VARS[n] for n in config.SECRET_SETTINGS}

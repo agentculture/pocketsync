@@ -165,7 +165,7 @@ class MongoSink:
                 "content_hash": chash,
                 "updated_at": now,
                 PATH_ENRICHMENT_STATUS: ENRICHMENT_PENDING,
-                "enrichment.attempts": 0,
+                PATH_ENRICHMENT_ATTEMPTS: 0,
             },
             _UNSET: {f"enrichment.{k}": "" for k in sorted(_DERIVED)},
             "$setOnInsert": {
@@ -246,7 +246,10 @@ class MongoSink:
             raise ValueError(f"not enrichment fields: {sorted(bad)}")
         if not payload:
             return False
-        update: dict[str, Any] = {"$set": {f"enrichment.{k}": v for k, v in payload.items()}}
+        fields = {f"enrichment.{k}": v for k, v in payload.items()}
+        if payload.get("status") == ENRICHMENT_DONE:
+            fields.setdefault(PATH_ENRICHMENT_ATTEMPTS, 0)  # the cap counts consecutive failures
+        update: dict[str, Any] = {"$set": fields}
         if "next_attempt_at" not in payload:
             update[_UNSET] = {PATH_NEXT_ATTEMPT: ""}  # a success clears any retry schedule
         res = self._col.update_one({"_id": recording_id, "content_hash": expected_hash}, update)
@@ -293,7 +296,12 @@ class MongoSink:
                 {
                     PATH_ENRICHMENT_STATUS: ENRICHMENT_ERROR,
                     PATH_ENRICHMENT_ATTEMPTS: {"$lt": MAX_ENRICHMENT_ATTEMPTS},
-                    PATH_NEXT_ATTEMPT: {"$lte": float(now)},
+                    # A doc that went to `error` before retries were scheduled (0.11.0) has
+                    # no next_attempt_at: it is due now.
+                    "$or": [
+                        {PATH_NEXT_ATTEMPT: {"$lte": float(now)}},
+                        {PATH_NEXT_ATTEMPT: {"$exists": False}},
+                    ],
                 }
             )
         cur = (

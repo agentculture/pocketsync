@@ -8,9 +8,14 @@ So a bare ``pocketsync status`` in the operator's shell would fail on a missing 
 variables are unset and grant holds secrets of those names, it replaces the process with
 ``grant run --inject VAR=VAR ... -- python -m pocketsync <argv>``.
 
-It never loops (``POCKETSYNC_VIA_GRANT`` marks the child), and it never overrides a value that
-is already set. It stays out of the way when grant is absent or holds none of the names, and
+It never loops (``POCKETSYNC_VIA_GRANT`` marks the child), and it never overrides a non-empty
+value (an empty variable counts as unset, exactly as the settings loader treats it). It
+stays out of the way when grant is absent or holds none of the names, and
 ``POCKETSYNC_NO_GRANT=1`` turns it off. The values never pass through pocketsync, argv or disk.
+
+Once exec'd, a failure inside grant itself (a locked store, a refused inject) is reported by
+grant in its own format and exit code, not pocketsync's ``--json`` error contract; if the exec
+itself fails, pocketsync carries on and reports the missing setting as usual.
 """
 
 from __future__ import annotations
@@ -22,12 +27,9 @@ import subprocess  # nosec B404 - runs the operator's own grant binary, fixed ar
 import sys
 from collections.abc import Callable, Mapping
 
-SECRET_ENV = (
-    "POCKETSYNC_API_KEY",
-    "POCKETSYNC_WEBHOOK_SECRET",
-    "POCKETSYNC_GATEWAY_API_KEY",
-    "POCKETSYNC_MONGO_URI",
-)
+from pocketsync.config import ENV_VARS, SECRET_SETTINGS
+
+SECRET_ENV = tuple(ENV_VARS[name] for name in SECRET_SETTINGS)
 REEXEC_MARK = "POCKETSYNC_VIA_GRANT"
 OPT_OUT = "POCKETSYNC_NO_GRANT"
 #: Verbs that build a runtime (and so may need secrets). Introspection verbs never do.
@@ -47,7 +49,7 @@ def grant_names(grant: str, run: Callable[..., object] = subprocess.run) -> set[
         data = json.loads(getattr(proc, "stdout", "") or "{}")
     except (OSError, ValueError, subprocess.SubprocessError):
         return set()
-    if getattr(proc, "returncode", 1) != 0 or not data.get("ok"):
+    if getattr(proc, "returncode", 1) != 0 or not isinstance(data, dict) or not data.get("ok"):
         return set()
     return {str(n) for n in data.get("names") or []}
 
@@ -66,6 +68,8 @@ def maybe_reexec(
     """
     if env.get(REEXEC_MARK) or env.get(OPT_OUT) or _verb(argv) not in RUNTIME_VERBS:
         return None
+    if "-h" in argv or "--help" in argv:
+        return None
     missing = [v for v in SECRET_ENV if not env.get(v)]
     if not missing:
         return None
@@ -80,5 +84,8 @@ def maybe_reexec(
     for var in inject:
         cmd += ["--inject", f"{var}={var}"]
     cmd += ["--", sys.executable, "-m", "pocketsync", *argv]
-    execvpe(grant, cmd, {**env, REEXEC_MARK: "1"})
+    try:
+        execvpe(grant, cmd, {**env, REEXEC_MARK: "1"})
+    except OSError:
+        return None  # grant vanished or is not executable: carry on and report normally
     return None
