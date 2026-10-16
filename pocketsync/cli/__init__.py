@@ -3,8 +3,11 @@
 The agent-first global verbs (``whoami``, ``learn``, ``explain``, ``overview``,
 ``doctor``), the ``cli`` noun group and the operational verbs (``auth``, ``list``,
 ``sync``, ``watch``, ``serve``, ``status``, ``reembed``) are registered here from
-:mod:`pocketsync.cli._commands`, each via its module's ``register()``. Operational
-verbs get their collaborators from :mod:`pocketsync.cli._runtime`.
+:mod:`pocketsync.cli._commands`, each via its module's ``register()``. The
+talk-to-recordings verbs (``enrich``, ``search``, ``get``, ``transcript``,
+``recordings``, ``actions``) are built from :data:`pocketsync.verbs.REGISTRY` by
+:mod:`pocketsync.cli._commands.verbs`; ``mcp`` and ``web`` serve that registry.
+Operational verbs get their collaborators from :mod:`pocketsync.cli._runtime`.
 
 Error propagation contract
 --------------------------
@@ -69,12 +72,15 @@ def _build_parser() -> argparse.ArgumentParser:
     from pocketsync.cli._commands import explain as _explain_cmd
     from pocketsync.cli._commands import learn as _learn_cmd
     from pocketsync.cli._commands import list_cmd as _list_cmd
+    from pocketsync.cli._commands import mcp as _mcp_cmd
     from pocketsync.cli._commands import overview as _overview_cmd
     from pocketsync.cli._commands import reembed as _reembed_cmd
     from pocketsync.cli._commands import serve as _serve_cmd
     from pocketsync.cli._commands import status as _status_cmd
     from pocketsync.cli._commands import sync_cmd as _sync_cmd
+    from pocketsync.cli._commands import verbs as _registry_cmds
     from pocketsync.cli._commands import watch as _watch_cmd
+    from pocketsync.cli._commands import web as _web_cmd
     from pocketsync.cli._commands import whoami as _whoami_cmd
 
     parser = _CliArgumentParser(
@@ -107,6 +113,11 @@ def _build_parser() -> argparse.ArgumentParser:
     _serve_cmd.register(sub)
     _status_cmd.register(sub)
     _reembed_cmd.register(sub)
+    # Talk-to-recordings verbs, data-driven from pocketsync.verbs.REGISTRY, plus the two
+    # server surfaces over the same registry (lazily imported).
+    _registry_cmds.register(sub)
+    _mcp_cmd.register(sub)
+    _web_cmd.register(sub)
 
     return parser
 

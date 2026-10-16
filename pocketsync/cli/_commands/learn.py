@@ -32,6 +32,17 @@ Commands
                                   enrichment worker in one process.
   pocketsync status               Watermark, last run, webhook health, backlog.
   pocketsync reembed [--apply]    Queue recordings embedded with another model.
+  pocketsync enrich [--apply]     Re-queue a selection for enrichment (--all,
+                                  --since, --until, --id, --label, --status;
+                                  --only classify|embed).
+  pocketsync search <query>       Semantic search over stored recordings
+                                  (keyword fallback when embedding is down).
+  pocketsync get <id>             One stored recording (no vectors).
+  pocketsync transcript <id>      Speaker-attributed segments (--start/--end).
+  pocketsync recordings           Stored recordings, newest first.
+  pocketsync actions              Action items (open only by default).
+  pocketsync mcp                  The same verbs as MCP tools over stdio.
+  pocketsync web                  Private chat site over the same verbs.
   pocketsync whoami               Identity from culture.yaml.
   pocketsync learn                This self-teaching prompt.
   pocketsync explain <path>...    Markdown docs for any noun/verb path.
@@ -39,8 +50,9 @@ Commands
   pocketsync doctor               Identity + runtime health checks.
   pocketsync cli overview         Describe the CLI surface itself.
 
-Write verbs (sync, reembed) are dry runs unless --apply; a dry run writes
-nothing. serve and watch run until SIGTERM or Ctrl-C.
+Write verbs (sync, reembed, enrich) are dry runs unless --apply; a dry run
+writes nothing. serve, watch, mcp and web run until stopped. Sensitive
+recordings are included unless --exclude-sensitive.
 
 Configuration
 -------------
@@ -86,6 +98,14 @@ def _as_json_payload() -> dict[str, object]:
             },
             {"path": ["status"], "summary": "Watermark, last run, webhook health, backlog."},
             {"path": ["reembed"], "summary": "Queue re-embedding; dry run unless --apply."},
+            {"path": ["enrich"], "summary": "Re-queue a selection; dry run unless --apply."},
+            {"path": ["search"], "summary": "Semantic search over stored recordings."},
+            {"path": ["get"], "summary": "One stored recording (no vectors)."},
+            {"path": ["transcript"], "summary": "Speaker-attributed transcript segments."},
+            {"path": ["recordings"], "summary": "Stored recordings, newest first."},
+            {"path": ["actions"], "summary": "Action items across stored recordings."},
+            {"path": ["mcp"], "summary": "The verb registry as MCP tools over stdio."},
+            {"path": ["web"], "summary": "Private chat site over the verb registry."},
             {"path": ["whoami"], "summary": "Identity probe from culture.yaml."},
             {"path": ["learn"], "summary": "Self-teaching prompt."},
             {"path": ["explain"], "summary": "Markdown docs by path."},
