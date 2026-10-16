@@ -43,6 +43,8 @@ PATH_DELETED = "deleted_in_pocket"
 PATH_MODEL = "enrichment.model"
 PATH_DIMS = "enrichment.dims"
 PATH_LABELS = "enrichment.labels"
+PATH_SENSITIVE = "enrichment.filters.sensitive"
+PATH_HAS_ACTION_ITEMS = "enrichment.filters.has_action_items"
 PATH_SUMMARY_VECTOR = "enrichment.summary_vector"
 PATH_CHUNKS = "enrichment.chunks"
 PATH_CHUNK_VECTOR = "enrichment.chunks.vector"
@@ -50,7 +52,13 @@ PATH_CHUNK_VECTOR = "enrichment.chunks.vector"
 SUMMARY_INDEX = "recordings_summary_vec"
 CHUNK_INDEX = "recordings_chunk_vec"
 SIMILARITY = "cosine"
-FILTER_PATHS = (PATH_LABELS, PATH_DELETED, PATH_RECORDING_AT)
+FILTER_PATHS = (
+    PATH_LABELS,
+    PATH_DELETED,
+    PATH_RECORDING_AT,
+    PATH_SENSITIVE,
+    PATH_HAS_ACTION_ITEMS,
+)
 
 REMEDIATION = "run `pocketsync reembed --apply` to re-embed everything with the configured model"
 
@@ -95,6 +103,11 @@ def _index_dims(index: dict[str, Any]) -> set[int]:
     }
 
 
+def _index_filters(index: dict[str, Any]) -> set[str]:
+    definition = index.get("latestDefinition") or index.get("definition") or {}
+    return {f["path"] for f in definition.get("fields", []) if f.get("type") == "filter"}
+
+
 def _meta(collection: Any) -> dict[str, Any] | None:
     return collection.database[META_COLLECTION].find_one({"_id": META_ID})
 
@@ -134,7 +147,12 @@ def reembed_plan(collection: Any, model: str, dims: int) -> list[Any]:
 
 
 def ensure_index(collection: Any, model: str, dims: int) -> list[str]:
-    """Idempotently create both vector indexes; return the names created this call."""
+    """Idempotently create both vector indexes; return the names created this call.
+
+    A present index whose filter fields differ from the wanted ones (order-insensitive)
+    is updated in place via ``update_search_index``; those names are not in the result.
+    :func:`check` stays dims/model-only, so filter drift never blocks startup.
+    """
     check(collection, model, dims)
     present = _existing(collection)
     created = []
@@ -142,6 +160,8 @@ def ensure_index(collection: Any, model: str, dims: int) -> list[str]:
         if spec["name"] not in present:
             collection.create_search_index(spec)
             created.append(spec["name"])
+        elif _index_filters(present[spec["name"]]) != set(FILTER_PATHS):
+            collection.update_search_index(spec["name"], spec["definition"])
     collection.database[META_COLLECTION].replace_one(
         {"_id": META_ID}, {"_id": META_ID, "model": model, "dims": dims}, upsert=True
     )

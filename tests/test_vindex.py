@@ -36,6 +36,7 @@ class Stub:
         self.docs = list(docs)
         self.indexes = []
         self.created = []
+        self.updated = []
         self.finds = []
         self.database = _DB()
 
@@ -45,6 +46,12 @@ class Stub:
     def create_search_index(self, model):
         self.created.append(model)
         self.indexes.append({"name": model["name"], "latestDefinition": model["definition"]})
+
+    def update_search_index(self, name, definition):
+        self.updated.append((name, definition))
+        for i in self.indexes:
+            if i["name"] == name:
+                i["latestDefinition"] = definition
 
     def find(self, q, proj=None):
         self.finds.append(q)
@@ -73,7 +80,13 @@ def test_creates_two_vector_indexes():
         "similarity": "cosine",
     }
     filt = {f["path"] for f in s["definition"]["fields"] if f["type"] == "filter"}
-    assert filt == {"enrichment.labels", "deleted_in_pocket", "recording_at"}
+    assert filt == {
+        "enrichment.labels",
+        "deleted_in_pocket",
+        "recording_at",
+        "enrichment.filters.sensitive",
+        "enrichment.filters.has_action_items",
+    }
     assert ch["definition"]["nestedRoot"] == "enrichment.chunks"
     assert ch["definition"]["fields"][0]["path"] == "enrichment.chunks.vector"
 
@@ -83,6 +96,59 @@ def test_idempotent():
     vindex.ensure_index(c, "m", 4)
     assert vindex.ensure_index(c, "m", 4) == []
     assert len(c.created) == 2
+
+
+def _strip_filters(c, keep):
+    for i in c.indexes:
+        d = i["latestDefinition"]
+        d["fields"] = [f for f in d["fields"] if f["type"] == "vector" or f["path"] in keep]
+
+
+def test_filter_paths_include_new_fields():
+    assert "enrichment.filters.sensitive" in vindex.FILTER_PATHS
+    assert "enrichment.filters.has_action_items" in vindex.FILTER_PATHS
+    assert vindex.PATH_SENSITIVE == "enrichment.filters.sensitive"
+    assert vindex.PATH_HAS_ACTION_ITEMS == "enrichment.filters.has_action_items"
+
+
+def test_stale_definition_is_updated_in_place():
+    c = Stub()
+    vindex.ensure_index(c, "m", 4)
+    _strip_filters(c, {"enrichment.labels", "deleted_in_pocket", "recording_at"})
+    assert vindex.ensure_index(c, "m", 4) == []
+    assert [n for n, _ in c.updated] == [vindex.SUMMARY_INDEX, vindex.CHUNK_INDEX]
+    assert len(c.created) == 2
+    assert dict(c.updated)[vindex.CHUNK_INDEX] == vindex.chunk_definition(4)
+    c.updated.clear()
+    vindex.ensure_index(c, "m", 4)
+    assert c.updated == []
+
+
+def test_filter_order_insensitive_noop():
+    c = Stub()
+    vindex.ensure_index(c, "m", 4)
+    for i in c.indexes:
+        i["latestDefinition"]["fields"].reverse()
+    vindex.ensure_index(c, "m", 4)
+    assert c.updated == []
+
+
+def test_missing_index_created_while_other_updated():
+    c = Stub()
+    vindex.ensure_index(c, "m", 4)
+    c.indexes = [i for i in c.indexes if i["name"] == vindex.SUMMARY_INDEX]
+    _strip_filters(c, {"recording_at"})
+    c.created.clear()
+    assert vindex.ensure_index(c, "m", 4) == [vindex.CHUNK_INDEX]
+    assert [n for n, _ in c.updated] == [vindex.SUMMARY_INDEX]
+
+
+def test_check_ignores_filter_differences():
+    c = Stub()
+    vindex.ensure_index(c, "m", 4)
+    _strip_filters(c, set())
+    vindex.check(c, "m", 4)
+    assert c.updated == []
 
 
 def test_dimension_change_fails_with_remediation():
