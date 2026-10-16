@@ -299,3 +299,165 @@ def test_content_change_without_files_keeps_refs(sink, db):
     sink.put_recording(rec(), FileSet(audio=FileRef("a/audio.m4a", 9, "bb")))
     sink.put_recording(rec(summary="changed"))
     assert doc(db)["files"]["audio"]["rel_path"] == "a/audio.m4a"
+
+
+# -- requeue / generation CAS / persisted deferral (talk-to-recordings t4) ----------------
+
+
+def enr(db, rid="r1"):
+    return doc(db, rid)["enrichment"]
+
+
+def test_requeue_resets_status_and_bumps_generation(sink, db):
+    sink.put_recording(rec())
+    h = doc(db)["content_hash"]
+    sink.set_enrichment_error("r1", h, "boom", next_attempt_at=99.0)
+    db[vindex.COLLECTION].update_one({"_id": "r1"}, {"$set": {"enrichment.deferred_reason": "x"}})
+    assert sink.requeue(["r1"], "classify") == 1
+    e = enr(db)
+    assert e["status"] == ENRICHMENT_PENDING
+    assert e["attempts"] == 0
+    assert e["mode"] == "classify"
+    assert e["generation"] == 1
+    for gone in ("error", "next_attempt_at", "deferred_reason"):
+        assert gone not in e
+    assert sink.requeue(["r1"], "embed") == 1
+    assert enr(db)["generation"] == 2
+    assert enr(db)["mode"] == "embed"
+
+
+def test_requeue_skips_deleted_and_unknown_and_counts(sink, db):
+    for rid in ("a", "b", "c"):
+        sink.put_recording(rec(rid))
+    sink.tombstone("b", "2026-06-01T00:00:00Z")
+    assert sink.requeue(["a", "b", "c", "nope"], "full") == 2
+    assert "generation" not in enr(db, "b")
+    assert enr(db, "b").get("mode") is None
+    assert sink.requeue([], "full") == 0
+
+
+def test_requeue_rejects_unknown_mode(sink, db):
+    sink.put_recording(rec())
+    with pytest.raises(ValueError):
+        sink.requeue(["r1"], "bogus")
+    assert "generation" not in enr(db)
+
+
+def test_requeue_mid_flight_is_not_overwritten(sink, db):
+    """c33: claim a doc, requeue it, finish the original run -> doc stays pending."""
+    sink.put_recording(rec())
+    (job,) = sink.pending_enrichment(10)
+    gen = job["enrichment"]["generation"]
+    assert gen == 0  # docs never requeued report generation 0
+    sink.requeue(["r1"], "full")
+    ok = sink.set_enrichment(
+        "r1", job["content_hash"], {"status": "done", "model": "m"}, expected_generation=gen
+    )
+    assert ok is False
+    assert enr(db)["status"] == ENRICHMENT_PENDING
+    assert "model" not in enr(db)
+    assert (
+        sink.set_enrichment_error("r1", job["content_hash"], "boom", expected_generation=gen)
+        is False
+    )
+    assert enr(db)["status"] == ENRICHMENT_PENDING
+    # re-processed on the next cycle, with the new generation
+    (job2,) = sink.pending_enrichment(10)
+    assert job2["enrichment"]["generation"] == 1
+    assert sink.set_enrichment(
+        "r1", job2["content_hash"], {"status": "done"}, expected_generation=1
+    )
+    assert enr(db)["status"] == "done"
+
+
+def test_absent_generation_matches_docs_without_one(sink, db):
+    sink.put_recording(rec())
+    h = doc(db)["content_hash"]
+    assert "generation" not in enr(db)
+    assert sink.set_enrichment("r1", h, {"status": "done"}, expected_generation=0) is True
+    assert sink.set_enrichment("r1", h, {"status": "done"}, expected_generation=1) is False
+    assert sink.set_enrichment_error("r1", h, "x", expected_generation=0) is True
+    assert sink.set_enrichment_error("r1", h, "x", expected_generation=3) is False
+
+
+def test_expected_generation_default_does_not_check(sink, db):
+    """The pre-generation worker calls (no expected_generation) keep working."""
+    sink.put_recording(rec())
+    h = doc(db)["content_hash"]
+    sink.requeue(["r1"], "full")
+    sink.requeue(["r1"], "full")
+    assert sink.set_enrichment_error("r1", h, "boom")
+    assert sink.set_enrichment("r1", h, {"status": "done"})
+
+
+def test_set_deferred_persists_reason_and_set_enrichment_clears(sink, db):
+    sink.put_recording(rec())
+    h = doc(db)["content_hash"]
+    assert sink.set_deferred("r1", h, 0, "gateway 503", 1000.0) is True
+    e = enr(db)
+    assert e["status"] == ENRICHMENT_PENDING
+    assert e["deferred_reason"] == "gateway 503"
+    assert e["next_attempt_at"] == 1000.0
+    assert sink.set_deferred("r1", "stale", 0, "x", 1.0) is False
+    assert sink.set_deferred("r1", h, 7, "x", 1.0) is False
+    assert sink.set_enrichment("r1", h, {"status": "done"}, expected_generation=0)
+    e = enr(db)
+    assert "deferred_reason" not in e and "next_attempt_at" not in e
+    # only a pending doc can be deferred
+    assert sink.set_deferred("r1", h, 0, "x", 1.0) is False
+
+
+def test_set_enrichment_error_clears_deferral_reason(sink, db):
+    sink.put_recording(rec())
+    h = doc(db)["content_hash"]
+    sink.set_deferred("r1", h, 0, "gateway 503", 1000.0)
+    assert sink.set_enrichment_error("r1", h, "boom", next_attempt_at=2000.0)
+    e = enr(db)
+    assert "deferred_reason" not in e
+    assert e["next_attempt_at"] == 2000.0
+
+
+def test_pending_enrichment_honours_persisted_deferral(sink, db):
+    for rid in ("a", "b", "c"):
+        sink.put_recording(rec(rid))
+    sink.set_deferred("a", doc(db, "a")["content_hash"], 0, "503", 500.0)
+    sink.set_deferred("b", doc(db, "b")["content_hash"], 0, "503", 50.0)
+    assert [d["_id"] for d in sink.pending_enrichment(10, now=100.0)] == ["b", "c"]
+    assert [d["_id"] for d in sink.pending_enrichment(10, now=600.0)] == ["a", "b", "c"]
+    # without a clock, today's behaviour: every pending doc
+    assert [d["_id"] for d in sink.pending_enrichment(10)] == ["a", "b", "c"]
+
+
+def test_pending_enrichment_returns_generation(sink, db):
+    sink.put_recording(rec("a"))
+    sink.put_recording(rec("b"))
+    sink.requeue(["b"], "embed")
+    got = {d["_id"]: d["enrichment"]["generation"] for d in sink.pending_enrichment(10)}
+    assert got == {"a": 0, "b": 1}
+
+
+def test_enrichment_fields_whitelist_grew():
+    from pocketsync.sinks.mongo import ENRICHMENT_FIELDS
+
+    assert {"mode", "generation", "deferred_reason"} <= ENRICHMENT_FIELDS
+
+
+def test_set_enrichment_accepts_mode_payload(sink, db):
+    sink.put_recording(rec())
+    h = doc(db)["content_hash"]
+    assert sink.set_enrichment("r1", h, {"status": "done", "mode": "full"})
+    assert enr(db)["mode"] == "full"
+
+
+def test_content_change_resets_requeue_and_deferral_state(sink, db):
+    sink.put_recording(rec())
+    h = doc(db)["content_hash"]
+    sink.requeue(["r1"], "classify")
+    sink.set_deferred("r1", h, 1, "503", 1000.0)
+    sink.put_recording(rec(summary="re-processed"))
+    e = enr(db)
+    assert e["status"] == ENRICHMENT_PENDING and e["attempts"] == 0
+    for gone in ("mode", "deferred_reason", "next_attempt_at"):
+        assert gone not in e
+    # generation is monotonic: a content change never rewinds it (no ABA on the CAS)
+    assert e["generation"] == 1
