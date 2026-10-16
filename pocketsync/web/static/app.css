@@ -249,7 +249,9 @@ button { cursor: pointer; }
   background: var(--rule-soft);
 }
 .tape-large .tape-span { border-radius: 3px; top: -3px; bottom: -3px; background: transparent;
-  box-shadow: 0 0 0 2px var(--ink); }
+  box-shadow: 0 0 0 2px var(--ink), 0 0 18px 2px color-mix(in srgb, var(--mark) 70%, transparent);
+  transition: left 520ms cubic-bezier(.3, 1.3, .4, 1), width 520ms cubic-bezier(.3, 1.3, .4, 1);
+  animation: none; }
 .turnmark { position: absolute; top: 2px; bottom: 2px; min-width: 2px; border-radius: 1px; background: color-mix(in srgb, var(--ink) 38%, transparent); }
 .turnmark.v1 { background: color-mix(in srgb, var(--cobalt) 45%, var(--tape)); }
 .turnmark.v2 { background: color-mix(in srgb, var(--ok) 45%, var(--tape)); }
@@ -273,7 +275,8 @@ button { cursor: pointer; }
 .composer {
   position: sticky; bottom: 0;
   margin-top: 1.5rem; padding: 0.75rem 0 1.25rem;
-  background: linear-gradient(to bottom, transparent, var(--paper) 1.25rem);
+  background: linear-gradient(to bottom, transparent, var(--paper) 2.25rem);
+  padding-top: 2rem;
 }
 .scope { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0 0 0.5rem; font-size: var(--step--1); color: var(--quiet); }
 .scope select {
@@ -425,7 +428,12 @@ button.chip:hover { color: var(--ink); border-color: var(--quiet); }
 .seg-time:hover { color: var(--cobalt); }
 .seg-speaker { display: block; font-weight: 650; font-size: var(--step--1); color: var(--ink); }
 .seg-text { margin: 0; font-family: var(--read); line-height: 1.6; }
-.seg.cited { background: color-mix(in srgb, var(--mark) 38%, transparent); }
+.seg {
+  background-image: linear-gradient(color-mix(in srgb, var(--mark) 42%, transparent), color-mix(in srgb, var(--mark) 42%, transparent));
+  background-repeat: no-repeat; background-size: 0% 100%;
+  transition: background-size 650ms cubic-bezier(.2, .8, .2, 1);
+}
+.seg.cited { background-size: 100% 100%; }
 .seg.cited .seg-text { color: var(--ink); }
 .seg.continues .seg-speaker { display: none; }
 
@@ -472,3 +480,117 @@ button.chip:hover { color: var(--ink); border-color: var(--quiet); }
 .recent-track { display: block; grid-column: 1 / -1; height: 6px; margin-top: 0.45rem; }
 .recent-tape { display: block; height: 100%; border-radius: 3px; background: var(--tape); }
 .recent-item:hover .recent-tape { background: var(--mark); }
+
+
+/* ================= motion =================
+   One idea, everywhere: things arrive the way sound does, left to right, in time. */
+
+:root { --spring: cubic-bezier(.2, .9, .25, 1.12); --glide: cubic-bezier(.2, .8, .2, 1); }
+
+/* the opening waveform: your recordings as sound */
+.memory { margin: 0 0 2.25rem; }
+.memory-bars {
+  display: flex; align-items: center; justify-content: space-between; gap: 5px; height: 136px;
+  padding: 0 2px; overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.mem-rec {
+  display: flex; align-items: center; gap: 2px; height: 100%;
+  padding: 0 1px; border: 0; background: transparent; border-radius: 6px; cursor: pointer;
+}
+.mem-bar {
+  display: block; width: 3px; height: calc(var(--h) * 100%);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--cobalt) calc(var(--r, 0) * 55%), var(--tape));
+  opacity: calc(0.55 + var(--r, 1) * 0.45);
+  transform-origin: 50% 50%;
+  animation: bar-rise 700ms var(--spring) both, bar-breathe 3.2s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * 8ms), calc(700ms + var(--i) * 8ms + var(--b) * 1s);
+  transition: background-color 160ms ease, transform 200ms var(--spring);
+}
+.mem-rec:hover .mem-bar, .mem-rec:focus-visible .mem-bar { background: var(--mark); }
+.mem-rec:hover, .mem-rec:focus-visible { outline: none; }
+.mem-rec:focus-visible { box-shadow: 0 0 0 2px var(--cobalt); }
+@keyframes bar-rise { from { transform: scaleY(0.04); opacity: 0; } }
+@keyframes bar-breathe { from { transform: scaleY(1); } to { transform: scaleY(0.82); } }
+.memory-caption {
+  margin: 0.6rem 0 0; min-height: 1.4em; font-size: var(--step--1); color: var(--quiet);
+}
+
+/* the headline settles in after the waveform */
+.empty-lead, .empty-sub, .suggestions, .recent {
+  animation: settle 700ms var(--glide) both;
+}
+.empty-lead { animation-delay: 260ms; }
+.empty-sub { animation-delay: 360ms; }
+.suggestions { animation-delay: 460ms; }
+.recent { animation-delay: 560ms; }
+@keyframes settle { from { opacity: 0; transform: translateY(10px); filter: blur(4px); } }
+
+.suggestion { transition: border-color 160ms ease, color 160ms ease, transform 200ms var(--spring); }
+.suggestion:hover { transform: translateY(-2px); }
+
+/* recent tapes and recording rows grow to their length */
+.recent-tape { transform-origin: left center; animation: grow 900ms var(--glide) both; }
+.recent-item:nth-child(2) .recent-tape { animation-delay: 80ms; }
+.recent-item:nth-child(3) .recent-tape { animation-delay: 160ms; }
+.recent-list li:nth-child(2) .recent-tape { animation-delay: 80ms; }
+.recent-list li:nth-child(3) .recent-tape { animation-delay: 160ms; }
+.recent-list li:nth-child(4) .recent-tape { animation-delay: 240ms; }
+@keyframes grow { from { transform: scaleX(0); } }
+
+/* a question lands, then the answer listens back */
+.turn { animation: settle 420ms var(--glide) both; }
+.listen { display: inline-flex; align-items: center; gap: 3px; height: 1.1em; margin-right: 0.7rem; vertical-align: -0.15em; }
+.listen span {
+  display: block; width: 3px; height: 100%; border-radius: 2px; background: var(--mark);
+  animation: listen-bar 900ms ease-in-out infinite;
+  animation-delay: calc(var(--k) * -110ms);
+}
+@keyframes listen-bar { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
+.answer.pending::after { display: none; }
+
+/* the answer arrives word by word */
+.w { display: inline; animation: word 420ms var(--glide) both; }
+@keyframes word { from { opacity: 0; filter: blur(3px); } }
+.cite.pop { animation: pop 420ms var(--spring) both; }
+@keyframes pop { from { transform: scale(0.2); opacity: 0; } }
+.cite { transition: background-color 140ms ease, color 140ms ease, transform 160ms var(--spring); }
+.cite:hover { transform: translateY(-1px) scale(1.08); }
+
+/* sources slide up in turn; their highlighter mark sweeps onto the tape */
+.source-item { animation: settle 520ms var(--glide) both; animation-delay: calc(500ms + var(--k) * 90ms); }
+.source .tape-span { transform-origin: left center; animation: grow 700ms var(--glide) both; animation-delay: calc(800ms + var(--k) * 90ms); }
+.source { transition: background-color 160ms ease, box-shadow 160ms ease, transform 200ms var(--spring); }
+.source:hover { transform: translateX(3px); }
+.source:hover .tape-span { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--mark-ink) 55%, transparent), 0 0 12px 2px color-mix(in srgb, var(--mark) 80%, transparent); }
+
+/* the reader springs in; speaker turns rise along the speech map */
+.reader { animation: reader-in 460ms var(--spring) both; }
+@keyframes reader-in { from { transform: translateX(2.5rem); opacity: 0; } }
+.turnmark { transform-origin: 50% 100%; animation: bar-rise 520ms var(--spring) both; }
+.reader-body > section { animation: settle 520ms var(--glide) both; }
+.reader-body > section:nth-child(2) { animation-delay: 80ms; }
+.reader-body > section:nth-child(3) { animation-delay: 160ms; }
+
+/* views cross-fade (where the browser supports view transitions) */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 260ms; animation-timing-function: var(--glide); }
+
+/* the composer lifts when you start typing */
+.ask-row { transition: border-color 160ms ease, box-shadow 220ms ease, transform 220ms var(--spring); }
+.ask-row:focus-within { box-shadow: 0 10px 30px -12px color-mix(in srgb, var(--cobalt) 45%, transparent); transform: translateY(-1px); }
+.ask-send { transition: transform 160ms var(--spring), opacity 160ms ease; }
+.ask-send:active { transform: scale(0.94); }
+
+@media (max-width: 860px) {
+  .reader { animation-name: sheet-in; }
+  @keyframes sheet-in { from { transform: translateY(3rem); opacity: 0; } }
+  .memory-bars { height: 84px; gap: 4px; }
+  .mem-bar { width: 2px; }
+}
+
+.fly-mark {
+  position: fixed; z-index: 30; pointer-events: none; border-radius: 4px;
+  background: var(--mark); transform-origin: 0 0;
+  box-shadow: 0 0 22px 4px color-mix(in srgb, var(--mark) 75%, transparent);
+}

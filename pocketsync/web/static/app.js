@@ -108,6 +108,100 @@ function length(sec) {
   return `${Math.floor(m / 60)} h ${m % 60} min`;
 }
 
+// ---------- motion ----------
+
+const calm = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function seeded(text) {
+  let h = 2166136261;
+  for (const ch of String(text)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return ((h ^= h >>> 16) >>> 0) / 4294967296;
+  };
+}
+
+// The opening waveform: every recording is a cluster of bars, oldest left, newest right.
+// Width follows length; the bar shapes are seeded by the recording id, so they stay put.
+function renderMemory(recordings) {
+  const rows = [...recordings]
+    .filter((r) => r.recording_at)
+    .sort((a, b) => String(a.recording_at).localeCompare(String(b.recording_at)))
+    .slice(-28);
+  if (!rows.length) return;
+  const caption = $("#memory-caption");
+  const idle = `${rows.length} recording${rows.length === 1 ? "" : "s"}. Point at one to see it.`;
+  caption.textContent = idle;
+  // About 120 bars across the column, shared out by the square root of each length so a
+  // two-minute memo still reads next to a one-hour lecture.
+  const weight = (r) => Math.sqrt(Math.max(r.duration || 60, 30));
+  const totalWeight = rows.reduce((sum, r) => sum + weight(r), 0);
+  const budget = Math.max(48, Math.min(132, Math.floor($("#memory-bars").clientWidth / 6) || 120));
+  let i = 0;
+  $("#memory-bars").replaceChildren(...rows.map((r, idx) => {
+    const rand = seeded(r.id);
+    const recency = rows.length > 1 ? idx / (rows.length - 1) : 1;
+    const n = Math.max(3, Math.round((weight(r) / totalWeight) * budget));
+    const bars = [];
+    for (let k = 0; k < n; k += 1) {
+      const envelope = Math.sin(((k + 0.5) / n) * Math.PI) * 0.55 + 0.45;
+      const bar = el("span", { class: "mem-bar" });
+      bar.style.setProperty("--h", (0.18 + rand() * 0.82 * envelope).toFixed(3));
+      bar.style.setProperty("--i", String(i));
+      bar.style.setProperty("--b", (rand() * 2.4).toFixed(2));
+      bar.style.setProperty("--r", recency.toFixed(3));
+      i += 1;
+      bars.push(bar);
+    }
+    const label = [r.title || "Untitled recording", when(r.recording_at)].filter(Boolean).join(", ");
+    const show = () => { caption.textContent = label; };
+    const hide = () => { caption.textContent = idle; };
+    return el("button", {
+      type: "button", class: "mem-rec", "aria-label": `Open ${label}`,
+      onmouseenter: show, onfocus: show, onmouseleave: hide, onblur: hide,
+      onclick: () => openReader(r.id),
+    }, bars);
+  }));
+  $("#memory").hidden = false;
+}
+
+// Reveal an answer word by word (the text is already in the DOM; this only staggers it in).
+function revealWords(node) {
+  if (calm()) return;
+  let i = 0;
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+  const texts = [];
+  while (walker.nextNode()) texts.push(walker.currentNode);
+  const step = Math.min(28, 1400 / Math.max(1, node.textContent.split(/\s+/).length));
+  for (const t of texts) {
+    const frag = document.createDocumentFragment();
+    for (const part of t.textContent.split(/(\s+)/)) {
+      if (!part) continue;
+      if (/^\s+$/.test(part)) { frag.append(part); continue; }
+      const w = el("span", { class: "w", text: part });
+      w.style.animationDelay = `${Math.round(i * step)}ms`;
+      i += 1;
+      frag.append(w);
+    }
+    t.replaceWith(frag);
+  }
+  node.querySelectorAll(".cite").forEach((c, k) => {
+    c.classList.add("pop");
+    c.style.animationDelay = `${Math.round(Math.min(i * step, 1400) * 0.6 + k * 60)}ms`;
+  });
+}
+
+function listening() {
+  const wave = el("span", { class: "listen", "aria-hidden": "true" });
+  for (let k = 0; k < 7; k += 1) {
+    const b = el("span");
+    b.style.setProperty("--k", String(k));
+    wave.append(b);
+  }
+  return wave;
+}
+
 // ---------- the tape ----------
 
 function tape(duration, start, end, { large = false } = {}) {
@@ -173,6 +267,7 @@ async function loadIndex() {
     select.replaceChildren(el("option", { value: "", text: "All kinds" }),
       ...state.labels.map((l) => el("option", { value: l, text: labelName(l) })));
     renderRecent(data.recordings);
+    renderMemory(data.recordings);
     return data;
   } catch (err) {
     return { recordings: [], error: err };
@@ -183,7 +278,7 @@ async function loadIndex() {
 function renderRecent(recordings) {
   const rows = [...recordings]
     .sort((a, b) => String(b.recording_at || "").localeCompare(String(a.recording_at || "")))
-    .slice(0, 4);
+    .slice(0, 3);
   if (!rows.length) return;
   const longest = Math.max(...rows.map((r) => r.duration || 0)) || 1;
   $("#recent-list").replaceChildren(...rows.map((r) => {
@@ -226,7 +321,7 @@ async function ask(question) {
   $("#ask-send").disabled = true;
   $("#ask-empty").hidden = true;
 
-  const answerNode = el("p", { class: "answer pending", text: "Listening back through your recordings" });
+  const answerNode = el("p", { class: "answer pending" }, listening(), "Listening back through your recordings");
   const turn = el("li", { class: "turn" }, el("p", { class: "question", text: question }), answerNode);
   $("#thread").append(turn);
   turn.scrollIntoView({ block: "end", behavior: "smooth" });
@@ -267,12 +362,14 @@ function renderAnswer(turn, answerNode, res) {
       answerNode.append(el("button", {
         type: "button", class: "cite", text: String(c.n),
         "aria-label": `Open source ${c.n}: ${c.title || "recording"} at ${clock(c.start)}`,
-        onclick: () => openCitation(turn, c),
+        onclick: (e) => openCitation(turn, c, e.currentTarget),
       }));
     } else if (part) {
       answerNode.append(document.createTextNode(part));
     }
   }
+
+  revealWords(answerNode);
 
   if (res.retrieval && res.retrieval.mode === "keyword") {
     turn.append(el("p", { class: "notice", text: "Matched on keywords only: semantic search is unavailable right now, so some relevant moments may be missing." }));
@@ -295,12 +392,12 @@ function renderFailure(turn, answerNode, err) {
 
 function sourceList(turn, citations) {
   return el("ol", { class: "sources", "aria-label": "Sources" },
-    citations.map((c) => {
+    citations.map((c, idx) => {
       const rec = state.recordings.get(c.id) || {};
-      return el("li", {},
+      const item = el("li", { class: "source-item" },
         el("button", {
           type: "button", class: "source", dataset: { n: String(c.n), id: c.id },
-          onclick: () => openCitation(turn, c),
+          onclick: (e) => openCitation(turn, c, e.currentTarget.querySelector(".tape-span") || e.currentTarget),
         },
           el("span", { class: "source-n", text: String(c.n) }),
           el("span", { class: "source-title", text: c.title || rec.title || "Untitled recording" }),
@@ -308,20 +405,42 @@ function sourceList(turn, citations) {
           c.text ? el("span", { class: "source-quote", text: c.text }) : null,
           el("span", { class: "tape-row" },
             tape(rec.duration, c.start, c.end),
-            el("span", { class: "tape-at", text: span(c.start, c.end) })),
-        ));
+            el("span", { class: "tape-at", text: span(c.start, c.end) }))));
+      item.style.setProperty("--k", String(idx));
+      return item;
     }));
 }
 
-function openCitation(turn, c) {
+// Continuity: the highlighter mark flies from the clicked source to the reader's speech map.
+function flyMark(fromRect) {
+  const frame = $("#reader-tape .tape-span");
+  if (!fromRect || !frame || calm() || !frame.animate) return;
+  const to = frame.getBoundingClientRect();
+  if (!to.width) return;
+  const ghost = el("div", { class: "fly-mark", "aria-hidden": "true" });
+  Object.assign(ghost.style, { left: `${fromRect.left}px`, top: `${fromRect.top}px`, width: `${fromRect.width}px`, height: `${fromRect.height}px` });
+  document.body.append(ghost);
+  const dx = to.left - fromRect.left;
+  const dy = to.top - fromRect.top;
+  const sx = to.width / Math.max(fromRect.width, 1);
+  const sy = to.height / Math.max(fromRect.height, 1);
+  ghost.animate([
+    { transform: "translate(0, 0) scale(1, 1)", opacity: 1 },
+    { transform: `translate(${dx * 0.55}px, ${dy * 0.55 - 40}px) scale(${(1 + sx) / 2}, ${(1 + sy) / 2})`, opacity: 1, offset: 0.55 },
+    { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0.2 },
+  ], { duration: 640, easing: "cubic-bezier(.3, .7, .2, 1)" }).finished.then(() => ghost.remove(), () => ghost.remove());
+}
+
+function openCitation(turn, c, origin) {
   turn.querySelectorAll(".cite").forEach((b) => b.setAttribute("aria-pressed", b.textContent === String(c.n) ? "true" : "false"));
   turn.querySelectorAll(".source").forEach((b) => b.setAttribute("aria-current", b.dataset.n === String(c.n) ? "true" : "false"));
-  openReader(c.id, c.start, c.end);
+  openReader(c.id, c.start, c.end, origin);
 }
 
 // ---------- reader ----------
 
-async function openReader(id, start = null, end = null) {
+async function openReader(id, start = null, end = null, origin = null) {
+  const fromRect = origin && origin.getBoundingClientRect ? origin.getBoundingClientRect() : null;
   const sameRec = state.reader && state.reader.id === id;
   state.reader = { id, start, end, duration: (state.recordings.get(id) || {}).duration };
   $(".shell").classList.add("reading");
@@ -333,6 +452,7 @@ async function openReader(id, start = null, end = null) {
 
   if (sameRec && $("#transcript").childElementCount) {
     highlight(start, end);
+    flyMark(fromRect);
     return;
   }
 
@@ -351,6 +471,7 @@ async function openReader(id, start = null, end = null) {
     if (!state.reader || state.reader.id !== id) return;
     renderReader(rec, tr);
     highlight(start, end);
+    requestAnimationFrame(() => requestAnimationFrame(() => flyMark(fromRect)));
   } catch (err) {
     $("#transcript").replaceChildren(el("li", { class: "error-line", text: err.message }));
   }
@@ -430,6 +551,7 @@ function buildSpeechMap(segs) {
     const end = typeof s.end === "number" ? s.end : s.start;
     const mark = el("div", { class: `turnmark v${voices.get(who)}`, dataset: { start: String(s.start), end: String(end) } });
     mark.style.left = `${(s.start / total) * 100}%`;
+    mark.style.animationDelay = `${Math.min(t.childElementCount * 12, 700)}ms`;
     mark.style.width = `${Math.max(((end - s.start) / total) * 100, 0.25)}%`;
     t.append(mark);
   }
@@ -455,7 +577,6 @@ function highlight(start, end) {
   state.reader.start = start;
   state.reader.end = end;
   const t = $("#reader-tape");
-  t.querySelectorAll(".tape-span").forEach((n) => n.remove());
   const total = state.reader.duration;
   const stop = typeof end === "number" ? end : start;
   t.querySelectorAll(".turnmark").forEach((m) => {
@@ -463,11 +584,16 @@ function highlight(start, end) {
     const e = Number(m.dataset.end);
     m.classList.toggle("hit", typeof start === "number" && e >= start && s <= stop);
   });
+  let frame = t.querySelector(".tape-span");
   if (typeof start === "number" && total) {
-    const frame = el("div", { class: "tape-span" });
+    if (!frame) {
+      frame = el("div", { class: "tape-span" });
+      t.append(frame);
+    }
     frame.style.left = `${Math.min(100, (start / total) * 100)}%`;
     frame.style.width = `${Math.max(((stop - start) / total) * 100, 0.6)}%`;
-    t.append(frame);
+  } else if (frame) {
+    frame.remove();
   }
   let first = null;
   document.querySelectorAll("#transcript .seg").forEach((node) => {
@@ -619,6 +745,14 @@ async function showTodos() {
 const VIEWS = ["ask", "recordings", "todos"];
 
 function route() {
+  if (document.startViewTransition && !calm() && document.body.dataset.ready) {
+    document.startViewTransition(() => showView());
+  } else {
+    showView();
+  }
+}
+
+function showView() {
   const view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "ask";
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== view;
   document.querySelectorAll(".views a").forEach((a) => {
@@ -679,5 +813,6 @@ function wire() {
 
 wire();
 route();
+requestAnimationFrame(() => { document.body.dataset.ready = "1"; });
 loadHealth();
 loadIndex();
