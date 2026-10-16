@@ -20,6 +20,8 @@ DEFAULT_FILES_ROOT = "~/.local/share/pocketsync/files"
 #: Earliest day the automatic catch-up backfills from (before Pocket shipped). "off" disables
 #: the automatic fresh-install and upgrade catch-up (plain incremental passes only).
 DEFAULT_BACKFILL_SINCE = "2024-01-01"
+DEFAULT_CHAT_MODEL = "unsloth/Qwen3.8-27B-NVFP4"
+DEFAULT_SITE_ORIGIN = "https://pocketchat.culture.dev"
 
 # setting name -> environment variable: always POCKETSYNC_<NAME>
 _SETTING_NAMES = (
@@ -34,12 +36,17 @@ _SETTING_NAMES = (
     "enrichment_concurrency",
     "taxonomy_path",
     "backfill_since",
+    "chat_model",
+    "web_port",
+    "access_team_domain",
+    "access_aud",
+    "site_origin",
 )
 ENV_VARS = {name: f"POCKETSYNC_{name.upper()}" for name in _SETTING_NAMES}
 CONFIG_PATH_ENV = "POCKETSYNC_CONFIG"
 #: Settings that are secrets (``repr=False`` on :class:`Settings`; injected from grant).
 SECRET_SETTINGS = ("api_key", "webhook_secret", "gateway_api_key", "mongo_uri")
-_INT_FIELDS = {"webhook_port", "reconcile_interval", "enrichment_concurrency"}
+_INT_FIELDS = {"webhook_port", "reconcile_interval", "enrichment_concurrency", "web_port"}
 
 
 @dataclass(frozen=True)
@@ -58,6 +65,11 @@ class Settings:
     enrichment_concurrency: int = 2
     taxonomy_path: str | None = None
     backfill_since: str = DEFAULT_BACKFILL_SINCE
+    chat_model: str = DEFAULT_CHAT_MODEL
+    web_port: int = 8788
+    access_team_domain: str | None = None
+    access_aud: str | None = None
+    site_origin: str = DEFAULT_SITE_ORIGIN
 
     def __str__(self) -> str:
         return repr(self)
