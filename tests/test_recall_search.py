@@ -96,7 +96,7 @@ def col():
 def test_query_is_embedded_with_prompt_name_query(col) -> None:
     gw = FakeGateway()
     search(col, gw, "budget", search_fn=FakeSearch())
-    assert gw.calls == [(["budget"], "Query")]
+    assert gw.calls == [(["budget"], "query")]
 
 
 def test_label_filter_goes_in_parent_filter_for_chunks_and_filter_for_summary(col) -> None:

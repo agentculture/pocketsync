@@ -258,7 +258,7 @@ def test_recall_search_filters_on_real_vector_search(sink: MongoSink) -> None:
     assert out["mode"] == "vector"
     assert out["results"][0]["id"] == "it-4"
     assert out["results"][0]["chunks"][0]["start"] == 1.0
-    assert gw.prompts == {"Query"}
+    assert gw.prompts == {"query"}
     assert {r["id"] for r in run(exclude_sensitive=True)["results"]} == {"it-7"}
     assert {r["id"] for r in run(since="2026-10-11")["results"]} == {"it-7"}
     assert {r["id"] for r in run(until="2026-10-10")["results"]} == {"it-4"}

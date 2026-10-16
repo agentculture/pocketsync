@@ -1,6 +1,6 @@
 """Semantic search over recordings: ``$vectorSearch`` on both indexes, keyword fallback.
 
-:func:`search` embeds the query through the gateway with ``prompt_name="Query"`` and
+:func:`search` embeds the query through the gateway with ``prompt_name="query"`` and
 runs two aggregation pipelines through ``search_fn(collection, pipeline)`` (default
 ``collection.aggregate``; tests inject a fake because mongomock cannot run
 ``$vectorSearch``):
@@ -51,7 +51,7 @@ OVERFETCH = 4
 MIN_CANDIDATES = 100
 MAX_CANDIDATES = 10000
 KEYWORD_SCAN_LIMIT = 500
-QUERY_PROMPT = "Query"
+QUERY_PROMPT = "query"  # the gateway accepts query/document (Query is a 400; verified live)
 MODE_VECTOR = "vector"
 MODE_KEYWORD = "keyword"
 

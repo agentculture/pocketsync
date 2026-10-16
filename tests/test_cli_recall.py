@@ -165,7 +165,7 @@ def test_search_vector_mode_uses_query_prompt(rt, capsys):
     out = _run_json(capsys, ["search", "budgets"])
     assert out["mode"] == "vector"
     assert {r["id"] for r in out["results"]} == {"r0001", "r0002", "r0003"}
-    assert rt.fake_gateway.prompt_names[-1] == "Query"
+    assert rt.fake_gateway.prompt_names[-1] == "query"
     assert "vector" not in json.dumps(out["results"][0]["chunks"])
 
 

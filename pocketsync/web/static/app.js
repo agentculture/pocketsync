@@ -254,7 +254,7 @@ function renderAnswer(turn, answerNode, res) {
 
   if (!res.answer && citations.length === 0) {
     answerNode.textContent = "Nothing in your recordings matches that. Try other words, or widen the time range.";
-    answerNode.classList.add("pending");
+    answerNode.classList.add("answer-note");
     return;
   }
 
@@ -290,7 +290,7 @@ function renderFailure(turn, answerNode, err) {
     return;
   }
   answerNode.textContent = err.hint ? `${err.message} ${err.hint}` : err.message;
-  answerNode.classList.add("pending");
+  answerNode.classList.add("answer-note");
 }
 
 function sourceList(turn, citations) {

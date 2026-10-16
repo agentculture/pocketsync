@@ -2,7 +2,7 @@
   "plan_slug": "talk-to-recordings",
   "schema_version": 2,
   "created": "2026-10-16T12:46:49Z",
-  "updated": "2026-10-16T12:46:49Z",
+  "updated": "2026-10-16T13:01:43Z",
   "deviations": [
     {
       "id": "d1",
@@ -17,6 +17,20 @@
       "status": "approved",
       "classification": "acceptable",
       "seq": 1
+    },
+    {
+      "id": "d2",
+      "what": "query embeddings use prompt_name 'query' (lowercase), not 'Query' as claim c10 states",
+      "task_ref": "t7",
+      "reason": "live probe: the lobes gateway returns 400 for prompt_name Query and 200 for query/document; Document and document give identical vectors (cosine 1.0000), so stored vectors are unaffected",
+      "affects": [
+        "c10",
+        "h10"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "classification": "acceptable",
+      "seq": 2
     }
   ],
   "evidence": [],
