@@ -4,7 +4,7 @@
   "schema_version": 6,
   "status": "exported",
   "created": "2026-10-16T12:11:33Z",
-  "updated": "2026-10-16T12:17:33Z",
+  "updated": "2026-10-16T12:20:14Z",
   "claims": [
     {
       "id": "c1",
@@ -626,9 +626,173 @@
       "links": [],
       "instruction": "",
       "revisions": []
+    },
+    {
+      "id": "c33",
+      "kind": "requirement",
+      "text": "re-queue is race-safe against an in-flight worker: enrich --apply bumps enrichment.generation and the worker's set_enrichment / set_enrichment_error CAS matches content_hash AND the generation it claimed, so a requeue issued mid-processing is not overwritten to done (today the CAS is on content_hash only, sinks/mongo.py set_enrichment)",
+      "origin": "llm",
+      "status": "confirmed",
+      "honesty_conditions": [
+        {
+          "id": "h31",
+          "text": "a requeue issued while the worker holds the doc leaves it pending and it is re-enriched on the next cycle",
+          "status": "confirmed",
+          "instruction": ""
+        }
+      ],
+      "hard_questions": [],
+      "links": [],
+      "instruction": "test: claim a doc, requeue it, finish the original run; doc stays pending and is re-processed",
+      "revisions": []
+    },
+    {
+      "id": "c34",
+      "kind": "requirement",
+      "text": "web output is XSS-safe and the mutating API is CSRF-safe: transcript/summary/model text is rendered only via textContent (never innerHTML), responses carry a strict Content-Security-Policy (no inline script from data, default-src self), and POST /api/enrich and /api/chat require Content-Type application/json plus an Origin header equal to the configured site origin",
+      "origin": "llm",
+      "status": "confirmed",
+      "honesty_conditions": [
+        {
+          "id": "h32",
+          "text": "no API response or page path writes model or transcript text through innerHTML; foreign-Origin or non-JSON POSTs get 403",
+          "status": "confirmed",
+          "instruction": ""
+        }
+      ],
+      "hard_questions": [],
+      "links": [],
+      "instruction": "tests: an HTML-bearing synthetic transcript round-trips escaped; POST without JSON content type or with a foreign Origin gets 403",
+      "revisions": []
+    },
+    {
+      "id": "c35",
+      "kind": "boundary",
+      "text": "the chat model and the MCP surface get no tools or side effects driven by model output: retrieved transcript text is untrusted context (prompt-injection), the chat model only produces text, and enrich runs only from an explicit operator click or CLI/MCP call with apply",
+      "origin": "llm",
+      "status": "confirmed",
+      "honesty_conditions": [
+        {
+          "id": "h33",
+          "text": "the chat completions request carries no tools/functions field",
+          "status": "confirmed",
+          "instruction": ""
+        }
+      ],
+      "hard_questions": [],
+      "links": [],
+      "instruction": "review web/chat code: no tool-calling in the chat request; system prompt marks context as quoted data",
+      "revisions": []
+    },
+    {
+      "id": "c36",
+      "kind": "requirement",
+      "text": "the Access JWT check fails closed: pocketsync web refuses to start without POCKETSYNC_ACCESS_TEAM_DOMAIN and POCKETSYNC_ACCESS_AUD unless run with an explicit --no-access-check (loopback dev only, loud warning); JWKS (https://<team>.cloudflareaccess.com/cdn-cgi/access/certs) is fetched lazily, cached, refreshed on unknown kid, and an unreachable JWKS yields 503 not allow",
+      "origin": "llm",
+      "status": "confirmed",
+      "honesty_conditions": [
+        {
+          "id": "h34",
+          "text": "missing/forged/expired/wrong-aud tokens get 403; partial Access config refuses to start; unreachable JWKS gives 503",
+          "status": "confirmed",
+          "instruction": ""
+        }
+      ],
+      "hard_questions": [],
+      "links": [],
+      "instruction": "cite culture-rules culture_rules/auth/access.py (cite-don't-import) into pocketsync/web/access.py; tests with a locally generated RSA key and a fake JWKS fetcher; never hit the network in tests",
+      "revisions": []
+    },
+    {
+      "id": "c37",
+      "kind": "requirement",
+      "text": "the chat request disables reasoning output for thinking models (chat_template_kwargs enable_thinking false and strips any leftover think block), caps the retrieved context (top 8 chunks, ~6000 chars) and the answer length, and returns 503 with the retrieved citations still listed when the chat lane is down",
+      "origin": "llm",
+      "status": "confirmed",
+      "honesty_conditions": [
+        {
+          "id": "h35",
+          "text": "no think block reaches the browser; chat-lane failure still returns the citations",
+          "status": "confirmed",
+          "instruction": ""
+        }
+      ],
+      "hard_questions": [],
+      "links": [],
+      "instruction": "gateway test asserts request body; web test with a failing chat client shows citations + error",
+      "revisions": []
+    },
+    {
+      "id": "c38",
+      "kind": "requirement",
+      "text": "when query embedding fails (embed lane down) search degrades to a case-insensitive keyword match over title, summary and chunk text with recording-level filters, and says so in the result (mode: keyword)",
+      "origin": "llm",
+      "status": "confirmed",
+      "honesty_conditions": [
+        {
+          "id": "h36",
+          "text": "with embed down, search returns keyword matches labelled mode=keyword instead of an error",
+          "status": "confirmed",
+          "instruction": ""
+        }
+      ],
+      "hard_questions": [],
+      "links": [],
+      "instruction": "test with a gateway raising EnrichmentUnavailable on embed",
+      "revisions": []
+    },
+    {
+      "id": "c39",
+      "kind": "requirement",
+      "text": "web access logging records method, path without query string, status and duration only \u2014 never question text, request bodies or answers",
+      "origin": "llm",
+      "status": "confirmed",
+      "honesty_conditions": [
+        {
+          "id": "h37",
+          "text": "the journal never contains question or answer text",
+          "status": "confirmed",
+          "instruction": ""
+        }
+      ],
+      "hard_questions": [],
+      "links": [],
+      "instruction": "test captures the log stream for a chat request and asserts the question text is absent",
+      "revisions": []
+    },
+    {
+      "id": "c40",
+      "kind": "assumption",
+      "text": "culture-rules consumers ignore event types they do not subscribe to, so adding pocketsync.recording.reclassified does not break existing rules",
+      "origin": "llm",
+      "status": "confirmed",
+      "honesty_conditions": [],
+      "hard_questions": [],
+      "links": [],
+      "instruction": "check culture-rules trigger matching on event type before merge",
+      "revisions": []
     }
   ],
-  "open_vagueness": [],
+  "open_vagueness": [
+    {
+      "id": "v1",
+      "text": "Atlas update_search_index rebuilds the index; queries during the rebuild may return partial results \u2014 duration on 12 docs is expected to be seconds but was not measured",
+      "kind": "unknown_nonblocking",
+      "claim_id": null,
+      "resolved": false,
+      "resolution": "",
+      "resolution_claim_id": null
+    },
+    {
+      "id": "v2",
+      "text": "the Cloudflare team domain for culture.dev Access is not recorded in the repo; read it from the existing Access app at deploy time",
+      "kind": "unknown_nonblocking",
+      "claim_id": null,
+      "resolved": false,
+      "resolution": "",
+      "resolution_claim_id": null
+    }
+  ],
   "scope_entries": [
     {
       "id": "s1",
@@ -755,6 +919,90 @@
       "finding": "runtime is stdlib-only; new third-party libs go behind extras with lazy import",
       "seeds": [
         "c22"
+      ]
+    },
+    {
+      "id": "s16",
+      "surface": "challenge pass / concurrency lens: pocketsync/sinks/mongo.py set_enrichment CAS + enrich/worker.py run_once (no lease)",
+      "finding": "CAS keys only on content_hash, so an operator requeue that lands while the worker holds the doc is silently overwritten by the finishing run",
+      "seeds": [
+        "c33"
+      ]
+    },
+    {
+      "id": "s17",
+      "surface": "challenge pass / security lens: recording text is third-party speech rendered in a browser and sent to the chat model",
+      "finding": "transcripts contain arbitrary text spoken by others; rendering and cross-site POSTs are the hazards",
+      "seeds": [
+        "c34"
+      ]
+    },
+    {
+      "id": "s18",
+      "surface": "challenge pass / security lens: chat prompt assembly (spec c17)",
+      "finding": "retrieved speech could carry instructions; containment is: no tools for the chat model",
+      "seeds": [
+        "c35"
+      ]
+    },
+    {
+      "id": "s19",
+      "surface": "challenge pass / security+operations lens: Access JWT verification (decision c30) + tests/conftest.py socket guard",
+      "finding": "the app audience tag exists only after the Access app is created, so deploy order is Access app -> settings -> unit; tests must fake JWKS",
+      "seeds": [
+        "c36"
+      ]
+    },
+    {
+      "id": "s20",
+      "surface": "challenge pass / failure-mode lens: gateway lanes (unsloth/Qwen3.8-27B-NVFP4 is a thinking model; gemma2-embed was down 2026-10-16)",
+      "finding": "a thinking model leaks reasoning; lanes go down; context windows are finite",
+      "seeds": [
+        "c37"
+      ]
+    },
+    {
+      "id": "s21",
+      "surface": "challenge pass / failure-mode lens: issue #9 prerequisite note (embed lane outage)",
+      "finding": "search must not hard-fail during an embed outage",
+      "seeds": [
+        "c38"
+      ]
+    },
+    {
+      "id": "s22",
+      "surface": "challenge pass / observability lens: webhook/server.py suppresses request logging today",
+      "finding": "a chat site would otherwise log private questions to the journal",
+      "seeds": [
+        "c39"
+      ]
+    },
+    {
+      "id": "s23",
+      "surface": "challenge pass / reversibility lens: pocketsync/vindex.py check() (lines ~115-131)",
+      "finding": "check() compares only model/dims and numDimensions, not filter fields, so adding filter paths in place does not break a downgrade to 0.11.1 serve; rollback = disable pocketsync-web unit + remove the Access app/ingress; clean otherwise",
+      "seeds": []
+    },
+    {
+      "id": "s24",
+      "surface": "challenge pass / adjacent-systems lens: grant run stdout (probe: grant run -- true wrote 0 bytes to stdout)",
+      "finding": "grant re-exec keeps the MCP stdio channel clean; clean pass",
+      "seeds": []
+    },
+    {
+      "id": "s25",
+      "surface": "challenge pass / adjacent-systems lens: events contract (README event schema, culture-rules consumers)",
+      "finding": "culture-rules engine/matching.py:183 trigger_matches: an event trigger matches only its exact named type, so a new pocketsync.recording.reclassified type fires no existing rule (additive, verified)",
+      "seeds": [
+        "c40"
+      ]
+    },
+    {
+      "id": "s26",
+      "surface": "challenge pass / adjacent-systems lens: culture-rules/culture_rules/auth/access.py",
+      "finding": "a stdlib-only Cloudflare Access JWT verifier (RS256 via pow, kid cache, single-flight JWKS refetch window, negative cache, all-or-nothing config, safe reason codes) exists to cite into pocketsync instead of writing one",
+      "seeds": [
+        "c36"
       ]
     }
   ],

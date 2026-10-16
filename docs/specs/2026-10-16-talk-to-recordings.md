@@ -74,6 +74,24 @@
 - docs: CLAUDE.md, README.md and QWEN.md amend the 'no UI' non-goal to 'UI only as a thin client over the CLI/MCP surface'; all four harness files plus README, explain catalog, learn (text+JSON), overview.`_VERBS`, tests/`test_cli_surface.py` `NEW_VERBS` and `_grant`.`RUNTIME_VERBS` list the new verbs
   - instruction: run lint job locally
   - honesty: teken cli doctor --strict passes and tests/`test_cli_surface.py` covers every new verb
+- re-queue is race-safe against an in-flight worker: enrich --apply bumps enrichment.generation and the worker's `set_enrichment` / `set_enrichment_error` CAS matches `content_hash` AND the generation it claimed, so a requeue issued mid-processing is not overwritten to done (today the CAS is on `content_hash` only, sinks/mongo.py `set_enrichment`)
+  - instruction: test: claim a doc, requeue it, finish the original run; doc stays pending and is re-processed
+  - honesty: a requeue issued while the worker holds the doc leaves it pending and it is re-enriched on the next cycle
+- web output is XSS-safe and the mutating API is CSRF-safe: transcript/summary/model text is rendered only via textContent (never innerHTML), responses carry a strict Content-Security-Policy (no inline script from data, default-src self), and POST /api/enrich and /api/chat require Content-Type application/json plus an Origin header equal to the configured site origin
+  - instruction: tests: an HTML-bearing synthetic transcript round-trips escaped; POST without JSON content type or with a foreign Origin gets 403
+  - honesty: no API response or page path writes model or transcript text through innerHTML; foreign-Origin or non-JSON POSTs get 403
+- the Access JWT check fails closed: pocketsync web refuses to start without `POCKETSYNC_ACCESS_TEAM_DOMAIN` and `POCKETSYNC_ACCESS_AUD` unless run with an explicit --no-access-check (loopback dev only, loud warning); JWKS (https://{team}.cloudflareaccess.com/cdn-cgi/access/certs) is fetched lazily, cached, refreshed on unknown kid, and an unreachable JWKS yields 503 not allow
+  - instruction: cite culture-rules `culture_rules`/auth/access.py (cite-don't-import) into pocketsync/web/access.py; tests with a locally generated RSA key and a fake JWKS fetcher; never hit the network in tests
+  - honesty: missing/forged/expired/wrong-aud tokens get 403; partial Access config refuses to start; unreachable JWKS gives 503
+- the chat request disables reasoning output for thinking models (`chat_template_kwargs` `enable_thinking` false and strips any leftover think block), caps the retrieved context (top 8 chunks, ~6000 chars) and the answer length, and returns 503 with the retrieved citations still listed when the chat lane is down
+  - instruction: gateway test asserts request body; web test with a failing chat client shows citations + error
+  - honesty: no think block reaches the browser; chat-lane failure still returns the citations
+- when query embedding fails (embed lane down) search degrades to a case-insensitive keyword match over title, summary and chunk text with recording-level filters, and says so in the result (mode: keyword)
+  - instruction: test with a gateway raising EnrichmentUnavailable on embed
+  - honesty: with embed down, search returns keyword matches labelled mode=keyword instead of an error
+- web access logging records method, path without query string, status and duration only — never question text, request bodies or answers
+  - instruction: test captures the log stream for a chat request and asserts the question text is absent
+  - honesty: the journal never contains question or answer text
 
 ## Honesty conditions
 
@@ -87,6 +105,7 @@
 - no request from any surface leaves spark except via the Cloudflare tunnel to the Access-gated browser; generation and embedding go to localhost:8001
 - the probes ran against the live deploy and their outputs (ids, counts, status codes only) are recorded on the PR
 - CI on the PR shows all jobs green with the parity test included
+- the chat completions request carries no tools/functions field
 
 ## Success signals
 
@@ -103,6 +122,8 @@
   - instruction: read the Access apps via the cf read script; print names/paths only
 - core stays dependency-free: mcp SDK only behind pocketsync\[mcp\]; web uses stdlib only; no numpy; the lobes gateway and other Mongo containers on spark are not modified
   - instruction: test that imports pocketsync.recall/web with a sys.modules check
+- the chat model and the MCP surface get no tools or side effects driven by model output: retrieved transcript text is untrusted context (prompt-injection), the chat model only produces text, and enrich runs only from an explicit operator click or CLI/MCP call with apply
+  - instruction: review web/chat code: no tool-calling in the chat request; system prompt marks context as quoted data
 
 ## Non-goals
 
@@ -111,6 +132,8 @@
 ## Assumptions
 
 - nestedRoot $vectorSearch returns parent documents, not the matched chunk; the core identifies the best chunks by cosine over the returned doc's stored chunk vectors locally (pure-Python, no numpy dependency)
+- culture-rules consumers ignore event types they do not subscribe to, so adding pocketsync.recording.reclassified does not break existing rules
+  - instruction: check culture-rules trigger matching on event type before merge
 
 ## Scope exploration
 
@@ -144,9 +167,34 @@
   - seeds: `c19`
 - `s15` — `pyproject.toml (dependencies=[], extras mongo/events)`: runtime is stdlib-only; new third-party libs go behind extras with lazy import
   - seeds: `c22`
+- `s16` — `challenge pass / concurrency lens: pocketsync/sinks/mongo.py set_enrichment CAS + enrich/worker.py run_once (no lease)`: CAS keys only on `content_hash`, so an operator requeue that lands while the worker holds the doc is silently overwritten by the finishing run
+  - seeds: `c33`
+- `s17` — `challenge pass / security lens: recording text is third-party speech rendered in a browser and sent to the chat model`: transcripts contain arbitrary text spoken by others; rendering and cross-site POSTs are the hazards
+  - seeds: `c34`
+- `s18` — `challenge pass / security lens: chat prompt assembly (spec c17)`: retrieved speech could carry instructions; containment is: no tools for the chat model
+  - seeds: `c35`
+- `s19` — `challenge pass / security+operations lens: Access JWT verification (decision c30) + tests/conftest.py socket guard`: the app audience tag exists only after the Access app is created, so deploy order is Access app -> settings -> unit; tests must fake JWKS
+  - seeds: `c36`
+- `s20` — `challenge pass / failure-mode lens: gateway lanes (unsloth/Qwen3.8-27B-NVFP4 is a thinking model; gemma2-embed was down 2026-10-16)`: a thinking model leaks reasoning; lanes go down; context windows are finite
+  - seeds: `c37`
+- `s21` — `challenge pass / failure-mode lens: issue #9 prerequisite note (embed lane outage)`: search must not hard-fail during an embed outage
+  - seeds: `c38`
+- `s22` — `challenge pass / observability lens: webhook/server.py suppresses request logging today`: a chat site would otherwise log private questions to the journal
+  - seeds: `c39`
+- `s23` — `challenge pass / reversibility lens: pocketsync/vindex.py check() (lines ~115-131)`: check() compares only model/dims and numDimensions, not filter fields, so adding filter paths in place does not break a downgrade to 0.11.1 serve; rollback = disable pocketsync-web unit + remove the Access app/ingress; clean otherwise
+- `s24` — `challenge pass / adjacent-systems lens: grant run stdout (probe: grant run -- true wrote 0 bytes to stdout)`: grant re-exec keeps the MCP stdio channel clean; clean pass
+- `s25` — `challenge pass / adjacent-systems lens: events contract (README event schema, culture-rules consumers)`: culture-rules engine/matching.py:183 `trigger_matches`: an event trigger matches only its exact named type, so a new pocketsync.recording.reclassified type fires no existing rule (additive, verified)
+  - seeds: `c40`
+- `s26` — `challenge pass / adjacent-systems lens: culture-rules/culture_rules/auth/access.py`: a stdlib-only Cloudflare Access JWT verifier (RS256 via pow, kid cache, single-flight JWKS refetch window, negative cache, all-or-nothing config, safe reason codes) exists to cite into pocketsync instead of writing one
+  - seeds: `c36`
 
 ## Decisions
 
 - web verifies the Cloudflare Access JWT on every request (defense in depth beyond Access at the edge and loopback bind)
 - sensitive recordings are NOT excluded by default on any surface; `exclude_sensitive` is an opt-in filter
 - the site hostname is pocketchat.culture.dev
+
+## Open parks
+
+- [unknown_nonblocking] Atlas `update_search_index` rebuilds the index; queries during the rebuild may return partial results — duration on 12 docs is expected to be seconds but was not measured
+- [unknown_nonblocking] the Cloudflare team domain for culture.dev Access is not recorded in the repo; read it from the existing Access app at deploy time
