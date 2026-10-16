@@ -41,7 +41,7 @@ After: the operator asks 'what did we decide about X last week?' in the browser 
 | `t10` | delivered | `pocketsync/mcp/` stdio server over the registry, `pocketsync[mcp]` extra, parity MCP half (1059d66) |
 | `t11` | delivered | `pocketsync/web/{server,chat}.py` to `docs/web-api.md`; the page itself delivered by the main agent under `d1` (addad10, 35733ad) |
 | `t12` | delivered | README, CLAUDE.md, QWEN.md, AGENTS.override.md, AGENTS.colleague.md, .pi/SYSTEM.md, `deploy/systemd/pocketsync-web.service`, `docs/operations/pocketchat-culture-dev.md` (e99ed94); version 0.12.0 by the main agent |
-| `t13` | partial | live on spark: Access app cc517906, tunnel ingress and CNAME for pocketchat.culture.dev, pocketsync-web unit, 0.12.0 reinstalled, live index fields updated, probes green; the 3 operator-chosen search probes and PR CI/Sonar are still open |
+| `t13` | partial | live on spark: Access app cc517906, tunnel ingress and CNAME for pocketchat.culture.dev, pocketsync-web unit, 0.12.0 reinstalled, live index fields updated, probes green; the 3 operator-chosen search probes are still open (PR CI and the Sonar gate are green) |
 
 ## Mid-work Decisions
 
@@ -70,7 +70,7 @@ After: the operator asks 'what did we decide about X last week?' in the browser 
 - end-to-end: real `pocketsync web`, real gateway (Qwen, gemma2-embed) and atlas-local with synthetic recordings in a throwaway db, driven in Playwright
 - live probes (status codes, ids and counts only): evidence e82 to e87
 - commits: `387f6a3..35733ad` on `feat/talk-to-recordings`
-- PRs / issues: #8, #9, #10 (PR to be opened)
+- PRs / issues: PR #11 (CI green, SonarCloud gate OK, 0 open issues after fixing 119 new issues and a scanner parse error, evidence e88); closes #8, #9, #10
 
 ## Delivery Claims
 
@@ -114,7 +114,6 @@ pending approval (not yet evidence): `l1`, `l2`
 ## Remaining Work / Follow-up
 
 - `c28`: the 3 operator-chosen probe questions; the operator asks three questions on pocketchat.culture.dev whose answer recording they know
-- `c29`: PR CI and the SonarCloud gate, on the PR
 - adjudication by the operator: `d2`, lapses `l1`/`l2`, evidence e1 to e87, deltas b5 to b8; reject the mis-linked deltas b1 to b3 (wrong evidence ids; b5 to b8 supersede them); keep or reject b4 (no evidence attached)
 - a taxonomy change still re-queues full enrichment, not classify-only (t6 note); follow-up together with #6
 - colleague low suggestions: document the `has_action_items=false` `$not` filter shape; keep any future mutating verb behind the web POST guard

@@ -2,7 +2,7 @@
   "plan_slug": "talk-to-recordings",
   "schema_version": 2,
   "created": "2026-10-16T12:46:49Z",
-  "updated": "2026-10-16T13:21:14Z",
+  "updated": "2026-10-16T13:43:39Z",
   "deviations": [
     {
       "id": "d1",
@@ -1686,6 +1686,25 @@
       "status": "proposed",
       "superseded": false,
       "seq": 89
+    },
+    {
+      "id": "e88",
+      "obligation_ref": "o23",
+      "test_ref": "PR #11 CI + SonarCloud",
+      "behavior_text": "all CI jobs green (test x2, lint, harness-smoke, version-check, GitGuardian); SonarCloud quality gate OK with 0 open issues on the PR",
+      "contract_text": "CI on the PR shows all jobs green with the parity test included",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "gh pr checks 11 and the SonarCloud API at f8422c2",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:43:39",
+        "commit": "f8422c2"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 90
     }
   ],
   "deltas": [
