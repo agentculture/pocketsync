@@ -30,7 +30,8 @@ so the module imports with pymongo absent. Callers supply the pymongo collection
 
 from __future__ import annotations
 
-from typing import Any
+import time
+from typing import Any, Callable
 
 from pocketsync.cli._errors import EXIT_USER_ERROR, CliError
 
@@ -43,14 +44,29 @@ PATH_DELETED = "deleted_in_pocket"
 PATH_MODEL = "enrichment.model"
 PATH_DIMS = "enrichment.dims"
 PATH_LABELS = "enrichment.labels"
+PATH_SENSITIVE = "enrichment.filters.sensitive"
+PATH_HAS_ACTION_ITEMS = "enrichment.filters.has_action_items"
 PATH_SUMMARY_VECTOR = "enrichment.summary_vector"
 PATH_CHUNKS = "enrichment.chunks"
 PATH_CHUNK_VECTOR = "enrichment.chunks.vector"
 
 SUMMARY_INDEX = "recordings_summary_vec"
 CHUNK_INDEX = "recordings_chunk_vec"
+#: How long :func:`_recreate` waits for a dropped index to leave the listing (mongot can
+#: take well over 30 s on a larger store), polling every :data:`RECREATE_POLL` seconds.
+RECREATE_WAIT_SECONDS = 600.0
+RECREATE_POLL = 1.0
+#: The atlas-local (mongot 1.77) refusal of an in-place vectorSearch update; only this
+#: refusal justifies a drop + re-create. Any other update failure leaves the index alone.
+_UPDATE_REFUSED = '"mappings" is required'
 SIMILARITY = "cosine"
-FILTER_PATHS = (PATH_LABELS, PATH_DELETED, PATH_RECORDING_AT)
+FILTER_PATHS = (
+    PATH_LABELS,
+    PATH_DELETED,
+    PATH_RECORDING_AT,
+    PATH_SENSITIVE,
+    PATH_HAS_ACTION_ITEMS,
+)
 
 REMEDIATION = "run `pocketsync reembed --apply` to re-embed everything with the configured model"
 
@@ -95,6 +111,11 @@ def _index_dims(index: dict[str, Any]) -> set[int]:
     }
 
 
+def _index_filters(index: dict[str, Any]) -> set[str]:
+    definition = index.get("latestDefinition") or index.get("definition") or {}
+    return {f["path"] for f in definition.get("fields", []) if f.get("type") == "filter"}
+
+
 def _meta(collection: Any) -> dict[str, Any] | None:
     return collection.database[META_COLLECTION].find_one({"_id": META_ID})
 
@@ -133,8 +154,48 @@ def reembed_plan(collection: Any, model: str, dims: int) -> list[Any]:
     return [d["_id"] for d in collection.find(_mismatch(model, dims), {"_id": 1})]
 
 
-def ensure_index(collection: Any, model: str, dims: int) -> list[str]:
-    """Idempotently create both vector indexes; return the names created this call."""
+class IndexStillDropping(RuntimeError):
+    """A dropped index was still listed after :data:`RECREATE_WAIT_SECONDS`; not re-created.
+
+    Not a :class:`CliError`, so ``serve`` only warns: the next start finds the index gone
+    and creates it, and search answers in keyword mode until then.
+    """
+
+
+def _recreate(collection: Any, spec: dict[str, Any], sleep: Callable[[float], None]) -> None:
+    """Drop and re-create one index (atlas-local cannot update a vectorSearch index in place).
+
+    Creating while the old index is still listed would fail on the duplicate name, so this
+    waits for it to go and raises :class:`IndexStillDropping` instead of creating blind.
+    """
+    collection.drop_search_index(spec["name"])
+    waited = 0.0
+    while spec["name"] in _existing(collection):
+        if waited >= RECREATE_WAIT_SECONDS:
+            raise IndexStillDropping(
+                f"index {spec['name']} was still dropping after {RECREATE_WAIT_SECONDS:.0f}s; "
+                "restart serve to create it once it is gone"
+            )
+        sleep(RECREATE_POLL)
+        waited += RECREATE_POLL
+    collection.create_search_index(spec)
+
+
+def ensure_index(
+    collection: Any, model: str, dims: int, *, sleep: Callable[[float], None] = time.sleep
+) -> list[str]:
+    """Idempotently create both vector indexes; return the names created this call.
+
+    A present index whose filter fields differ from the wanted ones (order-insensitive)
+    is updated in place via ``update_search_index``; those names are not in the result.
+    atlas-local (mongot 1.77) rejects that for vectorSearch indexes (``"mappings" is
+    required``), so on that refusal only the index is dropped and re-created instead; vector
+    search is unavailable for that index until it is queryable again (seconds on a small
+    store) and search falls back to keyword mode meanwhile. Any other update failure (a
+    timeout, a network blip) is re-raised with the index untouched, so a healthy index is
+    never dropped on a transient error. :func:`check` stays dims/model-only, so filter drift
+    never blocks startup.
+    """
     check(collection, model, dims)
     present = _existing(collection)
     created = []
@@ -142,6 +203,13 @@ def ensure_index(collection: Any, model: str, dims: int) -> list[str]:
         if spec["name"] not in present:
             collection.create_search_index(spec)
             created.append(spec["name"])
+        elif _index_filters(present[spec["name"]]) != set(FILTER_PATHS):
+            try:
+                collection.update_search_index(spec["name"], spec["definition"])
+            except Exception as exc:  # noqa: BLE001 - only the atlas-local refusal recreates
+                if _UPDATE_REFUSED not in str(exc):
+                    raise
+                _recreate(collection, spec, sleep)
     collection.database[META_COLLECTION].replace_one(
         {"_id": META_ID}, {"_id": META_ID, "model": model, "dims": dims}, upsert=True
     )

@@ -2,7 +2,8 @@
 
 The outbox is a public contract that culture-rules workflows build against.
 It is an append-only JSON Lines file at ``<files root>/events.jsonl``. One line
-is appended per new ``(recording_id, content_hash)`` pair, after enrichment.
+is appended per new ``(recording_id, content_hash)`` pair, after enrichment
+(plus the occasional ``reclassified`` line, below).
 
 Event schema (one JSON object per line)::
 
@@ -25,6 +26,30 @@ Event schema (one JSON object per line)::
 ``updated`` afterwards. A repeated ``(recording_id, content_hash)`` is never
 re-appended. Appends are one ``write`` + flush + fsync, so a crash leaves at
 worst a torn final line, which is ignored on load and healed on next append.
+
+Reclassified events. A re-enrichment that changes a recording's labels while its
+``content_hash`` stays the same (a taxonomy change, or an operator ``classify``
+requeue) appends one ``pocketsync.recording.reclassified`` line. It uses the same
+envelope minus ``change``; ``enrichment`` adds the labels before the change, the
+requeue generation and a digest of the new labels::
+
+    {
+      "event_id": "<uuid4>",
+      "type": "pocketsync.recording.reclassified",
+      "recording_id": "<pocket recording id>",
+      "content_hash": "<unchanged content hash>",
+      "sinks": {"mongo": {...}, "files": {...}},            # as above
+      "enrichment": {"labels": ["<new label>"], "previous_labels": ["<old label>"],
+                     "taxonomy_version": "...", "model": "...",
+                     "generation": <int>, "labels_digest": "<16 hex>"},
+      "emitted_at": "<RFC 3339 UTC timestamp>"
+    }
+
+It is deduped on ``(recording_id, content_hash, generation, taxonomy_version,
+labels_digest)``, so a retried write never publishes twice, while a later requeue
+or taxonomy change that lands on a different label set does. ``labels_digest`` is
+order-insensitive (see :func:`labels_digest`). The ``enriched`` event and its
+dedupe are unchanged: one per ``(recording_id, content_hash)``.
 
 Publishing is separate from appending. :class:`OutboxPublisher` drains
 unpublished lines through ``events_cli.EventClient.publish_event`` at QoS 1.
@@ -54,6 +79,7 @@ lazily, only when a publish is attempted without an injected client.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -64,6 +90,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 EVENT_TYPE = "pocketsync.recording.enriched"
+RECLASSIFIED_EVENT_TYPE = "pocketsync.recording.reclassified"
 OUTBOX_NAME = "events.jsonl"
 PUBLISHED_SUFFIX = ".published"
 SOURCE = "agent://pocketsync"  # events-cli requires an absolute URI
@@ -72,6 +99,12 @@ QOS = 1
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def labels_digest(labels: Any) -> str:
+    """Order-insensitive 16-hex digest of a label set (part of the reclassified dedupe key)."""
+    blob = json.dumps(sorted(set(labels or [])), separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
 def _read_lines(path: Path) -> list[tuple[int, int, dict[str, Any]]]:
@@ -103,9 +136,22 @@ class Outbox:
         self.root = Path(root)
         self.path = self.root / OUTBOX_NAME
         self._seen: set[tuple[str, str]] = set()
+        self._seen_reclassified: set[tuple[Any, ...]] = set()
         self._ids: set[str] = set()
         for _, _, ev in _read_lines(self.path):
-            self._seen.add((ev.get("recording_id"), ev.get("content_hash")))
+            if ev.get("type") == RECLASSIFIED_EVENT_TYPE:
+                enr = ev.get("enrichment") or {}
+                self._seen_reclassified.add(
+                    (
+                        ev.get("recording_id"),
+                        ev.get("content_hash"),
+                        enr.get("generation"),
+                        enr.get("taxonomy_version"),
+                        enr.get("labels_digest"),
+                    )
+                )
+            else:
+                self._seen.add((ev.get("recording_id"), ev.get("content_hash")))
             self._ids.add(ev.get("recording_id"))
 
     def append(
@@ -137,6 +183,52 @@ class Outbox:
             },
             "emitted_at": _now(),
         }
+        self._write(event)
+        self._seen.add(key)
+        self._ids.add(recording_id)
+        return event
+
+    def append_reclassified(
+        self,
+        recording_id: str,
+        content_hash: str,
+        *,
+        labels: list[str],
+        previous_labels: list[str] | None,
+        generation: int,
+        mongo: Mapping[str, str] | None = None,
+        files: Mapping[str, str] | None = None,
+        taxonomy_version: str | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Append one reclassified event; ``None`` if this exact label change was emitted."""
+        digest = labels_digest(labels)
+        key = (recording_id, content_hash, int(generation), taxonomy_version, digest)
+        if key in self._seen_reclassified:
+            return None
+        event = {
+            "event_id": str(uuid.uuid4()),
+            "type": RECLASSIFIED_EVENT_TYPE,
+            "recording_id": recording_id,
+            "content_hash": content_hash,
+            "sinks": {"mongo": dict(mongo or {}), "files": dict(files or {})},
+            "enrichment": {
+                "labels": list(labels),
+                "previous_labels": list(previous_labels or []),
+                "taxonomy_version": taxonomy_version,
+                "model": model,
+                "generation": int(generation),
+                "labels_digest": digest,
+            },
+            "emitted_at": _now(),
+        }
+        self._write(event)
+        self._seen_reclassified.add(key)
+        self._ids.add(recording_id)
+        return event
+
+    def _write(self, event: Mapping[str, Any]) -> None:
+        """One durable line: write + flush + fsync, healing a torn tail first."""
         line = (json.dumps(event, sort_keys=True) + "\n").encode("utf-8")
         self.root.mkdir(parents=True, exist_ok=True)
         # Heal a torn tail so the new line starts on its own line.
@@ -149,9 +241,6 @@ class Outbox:
             fh.write(line)
             fh.flush()
             os.fsync(fh.fileno())
-        self._seen.add(key)
-        self._ids.add(recording_id)
-        return event
 
 
 @dataclass(frozen=True)

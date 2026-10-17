@@ -15,7 +15,7 @@ import mongomock
 
 from pocketsync import config
 from pocketsync.cli import _runtime
-from pocketsync.enrich.gateway import EMBED_DIMS, Classification
+from pocketsync.enrich.gateway import EMBED_DIMS, Classification, EnrichmentUnavailable
 from pocketsync.events import OutboxPublisher
 from pocketsync.model import Recording, TranscriptSegment
 from pocketsync.pocket.fake import FakePocketSource
@@ -67,13 +67,48 @@ class FakeGateway:
     def __init__(self, tax: str = "tax-v1") -> None:
         self.tax = tax
         self.embeds = 0
+        self.prompt_names: list[str] = []
+        self.embed_error = False
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
+    def embed(self, texts: list[str], prompt_name: str = "Document") -> list[list[float]]:
         self.embeds += 1
+        self.prompt_names.append(prompt_name)
+        if self.embed_error:
+            raise EnrichmentUnavailable("synthetic embed lane outage")
         return [[0.25] * EMBED_DIMS for _ in texts]
 
     def classify(self, text: str) -> Classification:
         return Classification(["meeting"], 0.9, {"meeting": 0.9}, {}, self.tax)
+
+
+class FakeChat:
+    """Stand-in for the chat lane: records the messages and answers with canned text."""
+
+    def __init__(self, answer: str = "Synthetic answer.") -> None:
+        self.answer = answer
+        self.calls: list[list[dict[str, Any]]] = []
+        self.error: Exception | None = None
+
+    def chat(self, messages: list[dict[str, Any]], model: str | None = None, **kw: Any) -> str:
+        self.calls.append(list(messages))
+        if self.error is not None:
+            raise self.error
+        return self.answer
+
+
+def fake_vector_search(collection: Any, pipeline: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """``$vectorSearch`` stand-in: applies the pipeline's ``$match`` and ``$limit``, score 0.9.
+
+    It ignores the vector stage itself (mongomock cannot run it), so every doc passing the
+    recording-level filters is a "hit"; enough to exercise the surfaces end to end.
+    """
+    match: dict[str, Any] = {}
+    limit = 0
+    for stage in pipeline:
+        match = stage.get("$match", match)
+        limit = stage.get("$limit", limit)
+    docs = list(collection.find(match).sort("_id", 1).limit(limit))
+    return [{**d, "score": 0.9} for d in docs]
 
 
 class FakeResult:
@@ -166,6 +201,7 @@ class FakeRuntime(_runtime.Runtime):
         self.store = CountingSink(MongoSink(self.db))
         self.counting_state = CountingState(MongoStateStore(self.db))
         self.fake_gateway = FakeGateway()
+        self.fake_chat = FakeChat()
         self.events_client = FakeEventsClient()
         self.ping_error: Exception | None = None
         self.probe_result: Any = {"embed": {"gemma2-embed": {"ready": True}}}
@@ -196,6 +232,12 @@ class FakeRuntime(_runtime.Runtime):
 
     def gateway(self) -> Any:
         return self.fake_gateway
+
+    def chat(self) -> Any:
+        return self.fake_chat
+
+    def search_fn(self) -> Any:
+        return fake_vector_search
 
     def reconciler_options(self) -> dict[str, Any]:
         return {"sleep": lambda s: None, "policy": ReconcilePolicy(page_delay=0)}

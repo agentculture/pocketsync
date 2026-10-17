@@ -1,0 +1,2225 @@
+{
+  "plan_slug": "talk-to-recordings",
+  "schema_version": 2,
+  "created": "2026-10-16T12:46:49Z",
+  "updated": "2026-10-17T04:36:29Z",
+  "deviations": [
+    {
+      "id": "d1",
+      "what": "the main agent designs the pocketchat page (pocketsync/web/static/{index.html,app.css,app.js}) with the frontend-design skill and a web API contract doc while wave 2 runs; t11 implements the server/API to that contract and does not author the page",
+      "task_ref": "t11",
+      "reason": "user request: 'let's design, while agents work, that amazing chat experience' with the frontend-design and playwright plugins",
+      "affects": [
+        "c17",
+        "c34"
+      ],
+      "origin": "user",
+      "status": "approved",
+      "classification": "acceptable",
+      "seq": 1
+    },
+    {
+      "id": "d2",
+      "what": "query embeddings use prompt_name 'query' (lowercase), not 'Query' as claim c10 states",
+      "task_ref": "t7",
+      "reason": "live probe: the lobes gateway returns 400 for prompt_name Query and 200 for query/document; Document and document give identical vectors (cosine 1.0000), so stored vectors are unaffected",
+      "affects": [
+        "c10",
+        "h10"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "classification": "acceptable",
+      "seq": 2
+    }
+  ],
+  "evidence": [
+    {
+      "id": "e1",
+      "obligation_ref": "o1",
+      "test_ref": "tests/test_surface_parity.py::test_cli_calls_the_shared_core_function",
+      "behavior_text": "CLI, MCP and web handlers all route through Verb.invoke to the shared pocketsync.recall functions",
+      "contract_text": "CLI, MCP and web handlers all route through Verb.invoke to the shared pocketsync.recall functions",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 3
+    },
+    {
+      "id": "e2",
+      "obligation_ref": "o1",
+      "test_ref": "tests/test_web_server.py::test_endpoints_call_registry_verbs",
+      "behavior_text": "CLI, MCP and web handlers all route through Verb.invoke to the shared pocketsync.recall functions",
+      "contract_text": "CLI, MCP and web handlers all route through Verb.invoke to the shared pocketsync.recall functions",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 4
+    },
+    {
+      "id": "e3",
+      "obligation_ref": "o1",
+      "test_ref": "tests/test_surface_parity.py::test_mcp_result_equals_cli_json_and_registry_invoke",
+      "behavior_text": "CLI, MCP and web handlers all route through Verb.invoke to the shared pocketsync.recall functions",
+      "contract_text": "CLI, MCP and web handlers all route through Verb.invoke to the shared pocketsync.recall functions",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 5
+    },
+    {
+      "id": "e4",
+      "obligation_ref": "o2",
+      "test_ref": "tests/test_mcp.py::test_importing_the_package_does_not_import_mcp",
+      "behavior_text": "importing pocketsync.mcp leaves mcp unimported; missing SDK exits 2 with a hint and empty stdout; stdio carries only JSON-RPC",
+      "contract_text": "importing pocketsync.mcp leaves mcp unimported; missing SDK exits 2 with a hint and empty stdout; stdio carries only JSON-RPC",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 6
+    },
+    {
+      "id": "e5",
+      "obligation_ref": "o2",
+      "test_ref": "tests/test_mcp.py::test_cli_mcp_exits_2_with_hint_when_sdk_missing",
+      "behavior_text": "importing pocketsync.mcp leaves mcp unimported; missing SDK exits 2 with a hint and empty stdout; stdio carries only JSON-RPC",
+      "contract_text": "importing pocketsync.mcp leaves mcp unimported; missing SDK exits 2 with a hint and empty stdout; stdio carries only JSON-RPC",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 7
+    },
+    {
+      "id": "e6",
+      "obligation_ref": "o2",
+      "test_ref": "tests/test_mcp.py::test_stdio_stdout_carries_only_protocol",
+      "behavior_text": "importing pocketsync.mcp leaves mcp unimported; missing SDK exits 2 with a hint and empty stdout; stdio carries only JSON-RPC",
+      "contract_text": "importing pocketsync.mcp leaves mcp unimported; missing SDK exits 2 with a hint and empty stdout; stdio carries only JSON-RPC",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 8
+    },
+    {
+      "id": "e7",
+      "obligation_ref": "o3",
+      "test_ref": "tests/test_surface_parity.py::test_surface_in_parity_with_registry",
+      "behavior_text": "registry == CLI commands == MCP tools; removing or adding one makes the parity check fail",
+      "contract_text": "registry == CLI commands == MCP tools; removing or adding one makes the parity check fail",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 9
+    },
+    {
+      "id": "e8",
+      "obligation_ref": "o3",
+      "test_ref": "tests/test_surface_parity.py::test_a_registry_verb_missing_from_mcp_fails",
+      "behavior_text": "registry == CLI commands == MCP tools; removing or adding one makes the parity check fail",
+      "contract_text": "registry == CLI commands == MCP tools; removing or adding one makes the parity check fail",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 10
+    },
+    {
+      "id": "e9",
+      "obligation_ref": "o3",
+      "test_ref": "tests/test_surface_parity.py::test_a_cli_command_dropped_from_the_parser_fails",
+      "behavior_text": "registry == CLI commands == MCP tools; removing or adding one makes the parity check fail",
+      "contract_text": "registry == CLI commands == MCP tools; removing or adding one makes the parity check fail",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 11
+    },
+    {
+      "id": "e10",
+      "obligation_ref": "o3",
+      "test_ref": "tests/test_surface_parity.py::test_an_extra_mcp_tool_fails",
+      "behavior_text": "registry == CLI commands == MCP tools; removing or adding one makes the parity check fail",
+      "contract_text": "registry == CLI commands == MCP tools; removing or adding one makes the parity check fail",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 12
+    },
+    {
+      "id": "e11",
+      "obligation_ref": "o4",
+      "test_ref": "tests/test_recall_enrich.py::test_dry_run_changes_nothing",
+      "behavior_text": "dry-run leaves the collection identical and lists the selected ids; apply requeues only selected non-deleted docs",
+      "contract_text": "dry-run leaves the collection identical and lists the selected ids; apply requeues only selected non-deleted docs",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 13
+    },
+    {
+      "id": "e12",
+      "obligation_ref": "o4",
+      "test_ref": "tests/test_cli_recall.py::test_enrich_selectors",
+      "behavior_text": "dry-run leaves the collection identical and lists the selected ids; apply requeues only selected non-deleted docs",
+      "contract_text": "dry-run leaves the collection identical and lists the selected ids; apply requeues only selected non-deleted docs",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 14
+    },
+    {
+      "id": "e13",
+      "obligation_ref": "o4",
+      "test_ref": "tests/test_cli_recall.py::test_enrich_apply_requeues_only_selected",
+      "behavior_text": "dry-run leaves the collection identical and lists the selected ids; apply requeues only selected non-deleted docs",
+      "contract_text": "dry-run leaves the collection identical and lists the selected ids; apply requeues only selected non-deleted docs",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 15
+    },
+    {
+      "id": "e14",
+      "obligation_ref": "o4",
+      "test_ref": "tests/test_recall_enrich.py::test_all_skips_deleted",
+      "behavior_text": "dry-run leaves the collection identical and lists the selected ids; apply requeues only selected non-deleted docs",
+      "contract_text": "dry-run leaves the collection identical and lists the selected ids; apply requeues only selected non-deleted docs",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 16
+    },
+    {
+      "id": "e15",
+      "obligation_ref": "o5",
+      "test_ref": "tests/test_enrich_worker.py::test_classify_mode_reuses_stored_text_and_keeps_vectors",
+      "behavior_text": "classify mode makes 0 embed calls and keeps vectors; embed mode makes 0 classify calls and keeps labels/filters",
+      "contract_text": "classify mode makes 0 embed calls and keeps vectors; embed mode makes 0 classify calls and keeps labels/filters",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 17
+    },
+    {
+      "id": "e16",
+      "obligation_ref": "o5",
+      "test_ref": "tests/test_enrich_worker.py::test_embed_mode_keeps_labels_and_filters",
+      "behavior_text": "classify mode makes 0 embed calls and keeps vectors; embed mode makes 0 classify calls and keeps labels/filters",
+      "contract_text": "classify mode makes 0 embed calls and keeps vectors; embed mode makes 0 classify calls and keeps labels/filters",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 18
+    },
+    {
+      "id": "e17",
+      "obligation_ref": "o6",
+      "test_ref": "tests/test_enrich_worker.py::test_unavailable_persists_the_deferral_and_survives_restart",
+      "behavior_text": "a gateway outage persists deferred_reason/next_attempt_at, status --json reports it, success clears it",
+      "contract_text": "a gateway outage persists deferred_reason/next_attempt_at, status --json reports it, success clears it",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 19
+    },
+    {
+      "id": "e18",
+      "obligation_ref": "o6",
+      "test_ref": "tests/test_cli_status_reembed.py::test_status_reports_enrichment_deferred",
+      "behavior_text": "a gateway outage persists deferred_reason/next_attempt_at, status --json reports it, success clears it",
+      "contract_text": "a gateway outage persists deferred_reason/next_attempt_at, status --json reports it, success clears it",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 20
+    },
+    {
+      "id": "e19",
+      "obligation_ref": "o6",
+      "test_ref": "tests/test_sink_mongo.py::test_set_deferred_persists_reason_and_set_enrichment_clears",
+      "behavior_text": "a gateway outage persists deferred_reason/next_attempt_at, status --json reports it, success clears it",
+      "contract_text": "a gateway outage persists deferred_reason/next_attempt_at, status --json reports it, success clears it",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 21
+    },
+    {
+      "id": "e20",
+      "obligation_ref": "o7",
+      "test_ref": "tests/test_enrich_worker.py::test_label_change_with_same_content_emits_one_reclassified_event",
+      "behavior_text": "one reclassified event per label change, none when unchanged; enriched dedupe unchanged",
+      "contract_text": "one reclassified event per label change, none when unchanged; enriched dedupe unchanged",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 22
+    },
+    {
+      "id": "e21",
+      "obligation_ref": "o7",
+      "test_ref": "tests/test_enrich_worker.py::test_unchanged_labels_emit_no_reclassified_event",
+      "behavior_text": "one reclassified event per label change, none when unchanged; enriched dedupe unchanged",
+      "contract_text": "one reclassified event per label change, none when unchanged; enriched dedupe unchanged",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 23
+    },
+    {
+      "id": "e22",
+      "obligation_ref": "o7",
+      "test_ref": "tests/test_events.py::test_reclassified_schema_and_labels_digest_dedupe",
+      "behavior_text": "one reclassified event per label change, none when unchanged; enriched dedupe unchanged",
+      "contract_text": "one reclassified event per label change, none when unchanged; enriched dedupe unchanged",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 24
+    },
+    {
+      "id": "e23",
+      "obligation_ref": "o8",
+      "test_ref": "tests/test_config.py::test_talk_settings_defaults",
+      "behavior_text": "POCKETSYNC_CHAT_MODEL defaults to unsloth/Qwen3.8-27B-NVFP4, overrides the request model, and is not a secret",
+      "contract_text": "POCKETSYNC_CHAT_MODEL defaults to unsloth/Qwen3.8-27B-NVFP4, overrides the request model, and is not a secret",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 25
+    },
+    {
+      "id": "e24",
+      "obligation_ref": "o8",
+      "test_ref": "tests/test_config.py::test_talk_settings_env_override",
+      "behavior_text": "POCKETSYNC_CHAT_MODEL defaults to unsloth/Qwen3.8-27B-NVFP4, overrides the request model, and is not a secret",
+      "contract_text": "POCKETSYNC_CHAT_MODEL defaults to unsloth/Qwen3.8-27B-NVFP4, overrides the request model, and is not a secret",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 26
+    },
+    {
+      "id": "e25",
+      "obligation_ref": "o8",
+      "test_ref": "tests/test_gateway_chat.py::test_chat_model_override",
+      "behavior_text": "POCKETSYNC_CHAT_MODEL defaults to unsloth/Qwen3.8-27B-NVFP4, overrides the request model, and is not a secret",
+      "contract_text": "POCKETSYNC_CHAT_MODEL defaults to unsloth/Qwen3.8-27B-NVFP4, overrides the request model, and is not a secret",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 27
+    },
+    {
+      "id": "e26",
+      "obligation_ref": "o8",
+      "test_ref": "tests/test_config.py::test_secret_settings_unchanged",
+      "behavior_text": "POCKETSYNC_CHAT_MODEL defaults to unsloth/Qwen3.8-27B-NVFP4, overrides the request model, and is not a secret",
+      "contract_text": "POCKETSYNC_CHAT_MODEL defaults to unsloth/Qwen3.8-27B-NVFP4, overrides the request model, and is not a secret",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 28
+    },
+    {
+      "id": "e27",
+      "obligation_ref": "o9",
+      "test_ref": "tests/test_cli_status_reembed.py::test_reembed_dry_run_lists_ids_and_writes_nothing",
+      "behavior_text": "the 0.11.1 reembed tests pass unedited",
+      "contract_text": "the 0.11.1 reembed tests pass unedited",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 29
+    },
+    {
+      "id": "e28",
+      "obligation_ref": "o9",
+      "test_ref": "tests/test_cli_status_reembed.py::test_reembed_apply_marks_only_affected_pending",
+      "behavior_text": "the 0.11.1 reembed tests pass unedited",
+      "contract_text": "the 0.11.1 reembed tests pass unedited",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 30
+    },
+    {
+      "id": "e29",
+      "obligation_ref": "o10",
+      "test_ref": "tests/test_recall_search.py::test_label_filter_goes_in_parent_filter_for_chunks_and_filter_for_summary",
+      "behavior_text": "label filters in parentFilter (chunks) / filter (summary); deleted and merged excluded; query embedded with the query prompt (deviation d2: lowercase 'query'); verified on atlas-local",
+      "contract_text": "label filters in parentFilter (chunks) / filter (summary); deleted and merged excluded; query embedded with the query prompt (deviation d2: lowercase 'query'); verified on atlas-local",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 31
+    },
+    {
+      "id": "e30",
+      "obligation_ref": "o10",
+      "test_ref": "tests/test_recall_search.py::test_deleted_and_merged_never_appear_even_if_the_index_returns_them",
+      "behavior_text": "label filters in parentFilter (chunks) / filter (summary); deleted and merged excluded; query embedded with the query prompt (deviation d2: lowercase 'query'); verified on atlas-local",
+      "contract_text": "label filters in parentFilter (chunks) / filter (summary); deleted and merged excluded; query embedded with the query prompt (deviation d2: lowercase 'query'); verified on atlas-local",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 32
+    },
+    {
+      "id": "e31",
+      "obligation_ref": "o10",
+      "test_ref": "tests/test_recall_search.py::test_query_is_embedded_with_prompt_name_query",
+      "behavior_text": "label filters in parentFilter (chunks) / filter (summary); deleted and merged excluded; query embedded with the query prompt (deviation d2: lowercase 'query'); verified on atlas-local",
+      "contract_text": "label filters in parentFilter (chunks) / filter (summary); deleted and merged excluded; query embedded with the query prompt (deviation d2: lowercase 'query'); verified on atlas-local",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 33
+    },
+    {
+      "id": "e32",
+      "obligation_ref": "o10",
+      "test_ref": "tests/integration/test_atlas_local.py::test_recall_search_filters_on_real_vector_search",
+      "behavior_text": "label filters in parentFilter (chunks) / filter (summary); deleted and merged excluded; query embedded with the query prompt (deviation d2: lowercase 'query'); verified on atlas-local",
+      "contract_text": "label filters in parentFilter (chunks) / filter (summary); deleted and merged excluded; query embedded with the query prompt (deviation d2: lowercase 'query'); verified on atlas-local",
+      "evidence_type": "integration",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (opt-in atlas-local run)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 34
+    },
+    {
+      "id": "e33",
+      "obligation_ref": "o11",
+      "test_ref": "tests/test_vindex.py::test_stale_definition_is_updated_in_place",
+      "behavior_text": "a stale index gains the new filter fields (in place, or drop+recreate when atlas-local rejects the update) and check() does not mismatch",
+      "contract_text": "a stale index gains the new filter fields (in place, or drop+recreate when atlas-local rejects the update) and check() does not mismatch",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 35
+    },
+    {
+      "id": "e34",
+      "obligation_ref": "o11",
+      "test_ref": "tests/test_vindex.py::test_stale_index_is_recreated_when_in_place_update_is_rejected",
+      "behavior_text": "a stale index gains the new filter fields (in place, or drop+recreate when atlas-local rejects the update) and check() does not mismatch",
+      "contract_text": "a stale index gains the new filter fields (in place, or drop+recreate when atlas-local rejects the update) and check() does not mismatch",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 36
+    },
+    {
+      "id": "e35",
+      "obligation_ref": "o11",
+      "test_ref": "tests/integration/test_atlas_local.py::test_stale_vector_index_gains_new_filter_fields",
+      "behavior_text": "a stale index gains the new filter fields (in place, or drop+recreate when atlas-local rejects the update) and check() does not mismatch",
+      "contract_text": "a stale index gains the new filter fields (in place, or drop+recreate when atlas-local rejects the update) and check() does not mismatch",
+      "evidence_type": "integration",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (opt-in atlas-local run)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 37
+    },
+    {
+      "id": "e36",
+      "obligation_ref": "o11",
+      "test_ref": "tests/test_vindex.py::test_check_ignores_filter_differences",
+      "behavior_text": "a stale index gains the new filter fields (in place, or drop+recreate when atlas-local rejects the update) and check() does not mismatch",
+      "contract_text": "a stale index gains the new filter fields (in place, or drop+recreate when atlas-local rejects the update) and check() does not mismatch",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 38
+    },
+    {
+      "id": "e37",
+      "obligation_ref": "o12",
+      "test_ref": "tests/test_recall_search.py::test_exclude_sensitive_is_opt_in_and_keeps_absent_scores",
+      "behavior_text": "default returns sensitive docs; exclude_sensitive drops score>=threshold and keeps absent scores",
+      "contract_text": "default returns sensitive docs; exclude_sensitive drops score>=threshold and keeps absent scores",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 39
+    },
+    {
+      "id": "e38",
+      "obligation_ref": "o12",
+      "test_ref": "tests/test_cli_recall.py::test_search_filters_and_sensitive_opt_in",
+      "behavior_text": "default returns sensitive docs; exclude_sensitive drops score>=threshold and keeps absent scores",
+      "contract_text": "default returns sensitive docs; exclude_sensitive drops score>=threshold and keeps absent scores",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 40
+    },
+    {
+      "id": "e39",
+      "obligation_ref": "o13",
+      "test_ref": "tests/test_recall_search.py::test_results_merge_by_recording_and_never_include_vectors",
+      "behavior_text": "search tests inject a search_fn; no $vectorSearch runs through mongomock",
+      "contract_text": "search tests inject a search_fn; no $vectorSearch runs through mongomock",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 41
+    },
+    {
+      "id": "e40",
+      "obligation_ref": "o13",
+      "test_ref": "tests/test_recall_search.py::test_every_pipeline_excludes_merged_after_search_stage",
+      "behavior_text": "search tests inject a search_fn; no $vectorSearch runs through mongomock",
+      "contract_text": "search tests inject a search_fn; no $vectorSearch runs through mongomock",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 42
+    },
+    {
+      "id": "e41",
+      "obligation_ref": "o14",
+      "test_ref": "tests/test_surface_parity.py::test_cli_json_equals_registry_invoke",
+      "behavior_text": "search/get/transcript/recordings/actions return identical JSON from CLI --json, MCP and Verb.invoke",
+      "contract_text": "search/get/transcript/recordings/actions return identical JSON from CLI --json, MCP and Verb.invoke",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 43
+    },
+    {
+      "id": "e42",
+      "obligation_ref": "o14",
+      "test_ref": "tests/test_surface_parity.py::test_mcp_result_equals_cli_json_and_registry_invoke",
+      "behavior_text": "search/get/transcript/recordings/actions return identical JSON from CLI --json, MCP and Verb.invoke",
+      "contract_text": "search/get/transcript/recordings/actions return identical JSON from CLI --json, MCP and Verb.invoke",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 44
+    },
+    {
+      "id": "e43",
+      "obligation_ref": "o15",
+      "test_ref": "tests/test_web_server.py::test_refuses_non_loopback_bind",
+      "behavior_text": "web refuses non-loopback binds, answers through registry verbs, and loads nothing third-party",
+      "contract_text": "web refuses non-loopback binds, answers through registry verbs, and loads nothing third-party",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 45
+    },
+    {
+      "id": "e44",
+      "obligation_ref": "o15",
+      "test_ref": "tests/test_web_server.py::test_endpoints_call_registry_verbs",
+      "behavior_text": "web refuses non-loopback binds, answers through registry verbs, and loads nothing third-party",
+      "contract_text": "web refuses non-loopback binds, answers through registry verbs, and loads nothing third-party",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 46
+    },
+    {
+      "id": "e45",
+      "obligation_ref": "o15",
+      "test_ref": "tests/test_web_static.py::test_nothing_loads_from_another_origin",
+      "behavior_text": "web refuses non-loopback binds, answers through registry verbs, and loads nothing third-party",
+      "contract_text": "web refuses non-loopback binds, answers through registry verbs, and loads nothing third-party",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 47
+    },
+    {
+      "id": "e46",
+      "obligation_ref": "o16",
+      "test_ref": "tests/test_web_chat.py::test_every_citation_references_a_retrieved_hit_and_in_range_time",
+      "behavior_text": "every citation names a retrieved id with in-range times; zero hits -> no model call and no citations",
+      "contract_text": "every citation names a retrieved id with in-range times; zero hits -> no model call and no citations",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 48
+    },
+    {
+      "id": "e47",
+      "obligation_ref": "o16",
+      "test_ref": "tests/test_web_chat.py::test_zero_hits_makes_no_model_call",
+      "behavior_text": "every citation names a retrieved id with in-range times; zero hits -> no model call and no citations",
+      "contract_text": "every citation names a retrieved id with in-range times; zero hits -> no model call and no citations",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 49
+    },
+    {
+      "id": "e48",
+      "obligation_ref": "o16",
+      "test_ref": "tests/test_web_chat.py::test_citations_are_validated_and_renumbered",
+      "behavior_text": "every citation names a retrieved id with in-range times; zero hits -> no model call and no citations",
+      "contract_text": "every citation names a retrieved id with in-range times; zero hits -> no model call and no citations",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 50
+    },
+    {
+      "id": "e49",
+      "obligation_ref": "o17",
+      "test_ref": "tests/test_deploy_units.py::test_web_unit_injects_only_its_secrets_and_sets_access_env",
+      "behavior_text": "the web unit runs pocketsync web under grant run --inject; runbook orders Access first and never adds a Bypass (live probe recorded separately)",
+      "contract_text": "the web unit runs pocketsync web under grant run --inject; runbook orders Access first and never adds a Bypass (live probe recorded separately)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 51
+    },
+    {
+      "id": "e50",
+      "obligation_ref": "o17",
+      "test_ref": "tests/test_deploy_units.py::test_chat_runbook_creates_access_first_and_never_bypasses",
+      "behavior_text": "the web unit runs pocketsync web under grant run --inject; runbook orders Access first and never adds a Bypass (live probe recorded separately)",
+      "contract_text": "the web unit runs pocketsync web under grant run --inject; runbook orders Access first and never adds a Bypass (live probe recorded separately)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 52
+    },
+    {
+      "id": "e51",
+      "obligation_ref": "o18",
+      "test_ref": "tests/test_cli_surface.py::test_every_command_has_json_flag",
+      "behavior_text": "every new verb has --json, explain, learn and overview entries; teken cli doctor --strict passed",
+      "contract_text": "every new verb has --json, explain, learn and overview entries; teken cli doctor --strict passed",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 53
+    },
+    {
+      "id": "e52",
+      "obligation_ref": "o18",
+      "test_ref": "tests/test_cli_surface.py::test_new_verbs_registered",
+      "behavior_text": "every new verb has --json, explain, learn and overview entries; teken cli doctor --strict passed",
+      "contract_text": "every new verb has --json, explain, learn and overview entries; teken cli doctor --strict passed",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 54
+    },
+    {
+      "id": "e53",
+      "obligation_ref": "o19",
+      "test_ref": "tests/test_sync.py",
+      "behavior_text": "existing sync/landing/event tests pass with no assertion edits",
+      "contract_text": "existing sync/landing/event tests pass with no assertion edits",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 55
+    },
+    {
+      "id": "e54",
+      "obligation_ref": "o19",
+      "test_ref": "tests/test_events.py::test_append_schema_and_dedupe",
+      "behavior_text": "existing sync/landing/event tests pass with no assertion edits",
+      "contract_text": "existing sync/landing/event tests pass with no assertion edits",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 56
+    },
+    {
+      "id": "e55",
+      "obligation_ref": "o20",
+      "test_ref": "tests/test_web_server.py::test_refuses_non_loopback_bind",
+      "behavior_text": "web and webhook servers refuse non-loopback binds (Bypass read-back recorded as live observation)",
+      "contract_text": "web and webhook servers refuse non-loopback binds (Bypass read-back recorded as live observation)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 57
+    },
+    {
+      "id": "e56",
+      "obligation_ref": "o20",
+      "test_ref": "tests/test_webhook_server.py",
+      "behavior_text": "web and webhook servers refuse non-loopback binds (Bypass read-back recorded as live observation)",
+      "contract_text": "web and webhook servers refuse non-loopback binds (Bypass read-back recorded as live observation)",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 58
+    },
+    {
+      "id": "e57",
+      "obligation_ref": "o21",
+      "test_ref": "tests/test_surface_parity.py::test_verbs_module_imports_no_third_party_code",
+      "behavior_text": "pyproject dependencies stay []; verbs/tools import no third-party module",
+      "contract_text": "pyproject dependencies stay []; verbs/tools import no third-party module",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 59
+    },
+    {
+      "id": "e58",
+      "obligation_ref": "o21",
+      "test_ref": "tests/test_mcp.py::test_tools_module_has_no_third_party_imports",
+      "behavior_text": "pyproject dependencies stay []; verbs/tools import no third-party module",
+      "contract_text": "pyproject dependencies stay []; verbs/tools import no third-party module",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 60
+    },
+    {
+      "id": "e59",
+      "obligation_ref": "o23",
+      "test_ref": "CI: uv run pytest -n auto --cov",
+      "behavior_text": "local CI gates green: 914 passed / 6 skipped, coverage 94%, teken strict pass, lint clean (PR CI + Sonar pending)",
+      "contract_text": "local CI gates green: 914 passed / 6 skipped, coverage 94%, teken strict pass, lint clean (PR CI + Sonar pending)",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 61
+    },
+    {
+      "id": "e60",
+      "obligation_ref": "o23",
+      "test_ref": "teken cli doctor . --strict",
+      "behavior_text": "local CI gates green: 914 passed / 6 skipped, coverage 94%, teken strict pass, lint clean (PR CI + Sonar pending)",
+      "contract_text": "local CI gates green: 914 passed / 6 skipped, coverage 94%, teken strict pass, lint clean (PR CI + Sonar pending)",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 62
+    },
+    {
+      "id": "e61",
+      "obligation_ref": "o23",
+      "test_ref": "markdownlint",
+      "behavior_text": "local CI gates green: 914 passed / 6 skipped, coverage 94%, teken strict pass, lint clean (PR CI + Sonar pending)",
+      "contract_text": "local CI gates green: 914 passed / 6 skipped, coverage 94%, teken strict pass, lint clean (PR CI + Sonar pending)",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 63
+    },
+    {
+      "id": "e62",
+      "obligation_ref": "o23",
+      "test_ref": "scan-secrets",
+      "behavior_text": "local CI gates green: 914 passed / 6 skipped, coverage 94%, teken strict pass, lint clean (PR CI + Sonar pending)",
+      "contract_text": "local CI gates green: 914 passed / 6 skipped, coverage 94%, teken strict pass, lint clean (PR CI + Sonar pending)",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 64
+    },
+    {
+      "id": "e63",
+      "obligation_ref": "o23",
+      "test_ref": "harness-smoke --stage config",
+      "behavior_text": "local CI gates green: 914 passed / 6 skipped, coverage 94%, teken strict pass, lint clean (PR CI + Sonar pending)",
+      "contract_text": "local CI gates green: 914 passed / 6 skipped, coverage 94%, teken strict pass, lint clean (PR CI + Sonar pending)",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 65
+    },
+    {
+      "id": "e64",
+      "obligation_ref": "o24",
+      "test_ref": "tests/test_enrich_worker.py::test_requeue_during_processing_is_not_overwritten",
+      "behavior_text": "a requeue during processing leaves the doc pending and it is re-enriched next cycle",
+      "contract_text": "a requeue during processing leaves the doc pending and it is re-enriched next cycle",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 66
+    },
+    {
+      "id": "e65",
+      "obligation_ref": "o24",
+      "test_ref": "tests/test_sink_mongo.py::test_requeue_mid_flight_is_not_overwritten",
+      "behavior_text": "a requeue during processing leaves the doc pending and it is re-enriched next cycle",
+      "contract_text": "a requeue during processing leaves the doc pending and it is re-enriched next cycle",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 67
+    },
+    {
+      "id": "e66",
+      "obligation_ref": "o24",
+      "test_ref": "tests/test_enrich_worker.py::test_requeue_during_a_failing_run_keeps_it_pending",
+      "behavior_text": "a requeue during processing leaves the doc pending and it is re-enriched next cycle",
+      "contract_text": "a requeue during processing leaves the doc pending and it is re-enriched next cycle",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 68
+    },
+    {
+      "id": "e67",
+      "obligation_ref": "o25",
+      "test_ref": "tests/test_web_static.py::test_app_js_has_no_html_or_code_sinks",
+      "behavior_text": "no HTML sinks in app.js; CSP on every response; foreign-Origin/non-JSON POSTs get 403",
+      "contract_text": "no HTML sinks in app.js; CSP on every response; foreign-Origin/non-JSON POSTs get 403",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 69
+    },
+    {
+      "id": "e68",
+      "obligation_ref": "o25",
+      "test_ref": "tests/test_web_server.py::test_get_root_serves_index_with_security_headers",
+      "behavior_text": "no HTML sinks in app.js; CSP on every response; foreign-Origin/non-JSON POSTs get 403",
+      "contract_text": "no HTML sinks in app.js; CSP on every response; foreign-Origin/non-JSON POSTs get 403",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 70
+    },
+    {
+      "id": "e69",
+      "obligation_ref": "o25",
+      "test_ref": "tests/test_web_server.py::test_post_needs_json_and_same_origin",
+      "behavior_text": "no HTML sinks in app.js; CSP on every response; foreign-Origin/non-JSON POSTs get 403",
+      "contract_text": "no HTML sinks in app.js; CSP on every response; foreign-Origin/non-JSON POSTs get 403",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 71
+    },
+    {
+      "id": "e70",
+      "obligation_ref": "o26",
+      "test_ref": "tests/test_web_chat.py::test_prompt_marks_sources_as_untrusted_quoted_data",
+      "behavior_text": "the chat completions request carries no tools/functions field",
+      "contract_text": "the chat completions request carries no tools/functions field",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 72
+    },
+    {
+      "id": "e71",
+      "obligation_ref": "o26",
+      "test_ref": "tests/test_gateway_chat.py::test_chat_request_shape",
+      "behavior_text": "the chat completions request carries no tools/functions field",
+      "contract_text": "the chat completions request carries no tools/functions field",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 73
+    },
+    {
+      "id": "e72",
+      "obligation_ref": "o27",
+      "test_ref": "tests/test_web_server.py::test_bad_or_missing_jwt_is_403",
+      "behavior_text": "missing/forged/expired/wrong-aud tokens 403; partial config refuses start; JWKS down 503",
+      "contract_text": "missing/forged/expired/wrong-aud tokens 403; partial config refuses start; JWKS down 503",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 74
+    },
+    {
+      "id": "e73",
+      "obligation_ref": "o27",
+      "test_ref": "tests/test_web_server.py::test_serve_refuses_partial_access_config",
+      "behavior_text": "missing/forged/expired/wrong-aud tokens 403; partial config refuses start; JWKS down 503",
+      "contract_text": "missing/forged/expired/wrong-aud tokens 403; partial config refuses start; JWKS down 503",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 75
+    },
+    {
+      "id": "e74",
+      "obligation_ref": "o27",
+      "test_ref": "tests/test_web_server.py::test_jwks_unavailable_is_503",
+      "behavior_text": "missing/forged/expired/wrong-aud tokens 403; partial config refuses start; JWKS down 503",
+      "contract_text": "missing/forged/expired/wrong-aud tokens 403; partial config refuses start; JWKS down 503",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 76
+    },
+    {
+      "id": "e75",
+      "obligation_ref": "o27",
+      "test_ref": "tests/test_web_access.py::test_forged_signature_is_rejected",
+      "behavior_text": "missing/forged/expired/wrong-aud tokens 403; partial config refuses start; JWKS down 503",
+      "contract_text": "missing/forged/expired/wrong-aud tokens 403; partial config refuses start; JWKS down 503",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 77
+    },
+    {
+      "id": "e76",
+      "obligation_ref": "o28",
+      "test_ref": "tests/test_gateway_chat.py::test_chat_strips_think",
+      "behavior_text": "thinking disabled and think blocks stripped; context capped; chat-lane failure is 503 with citations",
+      "contract_text": "thinking disabled and think blocks stripped; context capped; chat-lane failure is 503 with citations",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 78
+    },
+    {
+      "id": "e77",
+      "obligation_ref": "o28",
+      "test_ref": "tests/test_web_chat.py::test_context_is_capped_at_8_chunks",
+      "behavior_text": "thinking disabled and think blocks stripped; context capped; chat-lane failure is 503 with citations",
+      "contract_text": "thinking disabled and think blocks stripped; context capped; chat-lane failure is 503 with citations",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 79
+    },
+    {
+      "id": "e78",
+      "obligation_ref": "o28",
+      "test_ref": "tests/test_web_chat.py::test_http_chat_lane_down_is_503_with_citations",
+      "behavior_text": "thinking disabled and think blocks stripped; context capped; chat-lane failure is 503 with citations",
+      "contract_text": "thinking disabled and think blocks stripped; context capped; chat-lane failure is 503 with citations",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 80
+    },
+    {
+      "id": "e79",
+      "obligation_ref": "o29",
+      "test_ref": "tests/test_recall_search.py::test_embed_failure_falls_back_to_keyword_mode",
+      "behavior_text": "embed failure returns keyword matches labelled mode=keyword",
+      "contract_text": "embed failure returns keyword matches labelled mode=keyword",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 81
+    },
+    {
+      "id": "e80",
+      "obligation_ref": "o29",
+      "test_ref": "tests/test_cli_recall.py::test_search_falls_back_to_keyword_when_embed_fails",
+      "behavior_text": "embed failure returns keyword matches labelled mode=keyword",
+      "contract_text": "embed failure returns keyword matches labelled mode=keyword",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 82
+    },
+    {
+      "id": "e81",
+      "obligation_ref": "o30",
+      "test_ref": "tests/test_web_server.py::test_access_log_has_method_path_status_duration_only",
+      "behavior_text": "access log has method, path, status, duration and no question/answer/query text",
+      "contract_text": "access log has method, path, status, duration and no question/answer/query text",
+      "evidence_type": "automated",
+      "strength": "execution",
+      "strength_basis": "ran green at 35733ad (full local suite)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:33",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 83
+    },
+    {
+      "id": "e82",
+      "obligation_ref": "o17",
+      "test_ref": "live: curl https://pocketchat.culture.dev/ and /api/health",
+      "behavior_text": "unauthenticated GET -> 302 to agentculture.cloudflareaccess.com login; pocketsync-web unit active under grant run --inject",
+      "contract_text": "unauthenticated GET -> 302 to agentculture.cloudflareaccess.com login; pocketsync-web unit active under grant run --inject",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "live probe on spark at 35733ad (status codes / ids / counts only)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:50",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 84
+    },
+    {
+      "id": "e83",
+      "obligation_ref": "o17",
+      "test_ref": "live: curl pocketsync.culture.dev / , POST /hooks/pocket, /hooks/pocketX",
+      "behavior_text": "pocketsync.culture.dev routes unchanged: 302, unsigned 401, 302",
+      "contract_text": "pocketsync.culture.dev routes unchanged: 302, unsigned 401, 302",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "live probe on spark at 35733ad (status codes / ids / counts only)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:50",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 85
+    },
+    {
+      "id": "e84",
+      "obligation_ref": "o20",
+      "test_ref": "live: Cloudflare Access apps read-back (cf_pocketchat.py)",
+      "behavior_text": "pocketsync apps are exactly pocketsync.culture.dev/hooks/pocket (Bypass) and pocketsync.culture.dev; pocketchat app has a single allow policy, no Bypass; loopback GET without JWT -> 403",
+      "contract_text": "pocketsync apps are exactly pocketsync.culture.dev/hooks/pocket (Bypass) and pocketsync.culture.dev; pocketchat app has a single allow policy, no Bypass; loopback GET without JWT -> 403",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "live probe on spark at 35733ad (status codes / ids / counts only)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:50",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 86
+    },
+    {
+      "id": "e85",
+      "obligation_ref": "o22",
+      "test_ref": "live: chat.answer on the real stack",
+      "behavior_text": "a live chat answer retrieved 8 sources (vector mode) and cited 6, all with numeric timestamps, every marker resolving",
+      "contract_text": "a live chat answer retrieved 8 sources (vector mode) and cited 6, all with numeric timestamps, every marker resolving",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "live probe on spark at 35733ad (status codes / ids / counts only)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:50",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 87
+    },
+    {
+      "id": "e86",
+      "obligation_ref": "o22",
+      "test_ref": "live: pocketsync search / enrich --status error / actions",
+      "behavior_text": "search returned vector-mode hits with timed chunks; enrich --status error dry-run count 0; index filter fields live after upgrade",
+      "contract_text": "search returned vector-mode hits with timed chunks; enrich --status error dry-run count 0; index filter fields live after upgrade",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "live probe on spark at 35733ad (status codes / ids / counts only)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:50",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 88
+    },
+    {
+      "id": "e87",
+      "obligation_ref": "o11",
+      "test_ref": "live: list_search_indexes after serve restart",
+      "behavior_text": "both live vector indexes READY with enrichment.filters.sensitive and has_action_items filter fields",
+      "contract_text": "both live vector indexes READY with enrichment.filters.sensitive and has_action_items filter fields",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "live probe on spark at 35733ad (status codes / ids / counts only)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:20:50",
+        "commit": "35733ad"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 89
+    },
+    {
+      "id": "e88",
+      "obligation_ref": "o23",
+      "test_ref": "PR #11 CI + SonarCloud",
+      "behavior_text": "all CI jobs green (test x2, lint, harness-smoke, version-check, GitGuardian); SonarCloud quality gate OK with 0 open issues on the PR",
+      "contract_text": "CI on the PR shows all jobs green with the parity test included",
+      "evidence_type": "observation",
+      "strength": "execution",
+      "strength_basis": "gh pr checks 11 and the SonarCloud API at f8422c2",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-16T13:43:39",
+        "commit": "f8422c2"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 90
+    },
+    {
+      "id": "e89",
+      "obligation_ref": "o29",
+      "test_ref": "tests/test_recall_search.py::test_vector_search_failure_falls_back_to_keyword_mode",
+      "behavior_text": "a failing $vectorSearch stage degrades to keyword mode with reason 'vector search failed: <type>' instead of raising",
+      "contract_text": "a failing $vectorSearch stage degrades to keyword mode with reason 'vector search failed: <type>' instead of raising",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 91
+    },
+    {
+      "id": "e90",
+      "obligation_ref": "o11",
+      "test_ref": "tests/test_vindex.py::test_transient_update_failure_keeps_the_index",
+      "behavior_text": "a non-refusal update_search_index error is re-raised and the index is neither dropped nor created",
+      "contract_text": "a non-refusal update_search_index error is re-raised and the index is neither dropped nor created",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 92
+    },
+    {
+      "id": "e91",
+      "obligation_ref": "o11",
+      "test_ref": "tests/test_vindex.py::test_recreate_never_creates_over_an_index_still_dropping",
+      "behavior_text": "a drop still listed after RECREATE_WAIT_SECONDS raises IndexStillDropping and creates nothing",
+      "contract_text": "a drop still listed after RECREATE_WAIT_SECONDS raises IndexStillDropping and creates nothing",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 93
+    },
+    {
+      "id": "e92",
+      "obligation_ref": "o10",
+      "test_ref": "tests/test_recall_read.py::test_since_until_accept_every_iso_form_fromisoformat_accepts",
+      "behavior_text": "basic dates, space separators, UTC offsets and fractional seconds in since/until select the same instants as the stored UTC recording_at",
+      "contract_text": "basic dates, space separators, UTC offsets and fractional seconds in since/until select the same instants as the stored UTC recording_at",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 94
+    },
+    {
+      "id": "e93",
+      "obligation_ref": "o4",
+      "test_ref": "tests/test_recall_enrich.py::test_dates_mean_the_same_as_in_the_read_verbs",
+      "behavior_text": "enrich --since/--until select exactly the recordings list_recordings selects for the same values",
+      "contract_text": "enrich --since/--until select exactly the recordings list_recordings selects for the same values",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 95
+    },
+    {
+      "id": "e94",
+      "obligation_ref": "o4",
+      "test_ref": "tests/test_recall_enrich.py::test_merged_recordings_are_not_selected",
+      "behavior_text": "enrich never selects a recording with merged_into set",
+      "contract_text": "enrich never selects a recording with merged_into set",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 96
+    },
+    {
+      "id": "e95",
+      "obligation_ref": "o5",
+      "test_ref": "tests/test_enrich_worker.py::test_taxonomy_change_reclassifies_without_embedding",
+      "behavior_text": "a taxonomy change requeues in classify mode with generation+1 and the next run makes 0 embed calls",
+      "contract_text": "a taxonomy change requeues in classify mode with generation+1 and the next run makes 0 embed calls",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 97
+    },
+    {
+      "id": "e96",
+      "obligation_ref": "o6",
+      "test_ref": "tests/test_enrich_worker.py::test_retry_schedule_forgets_docs_that_leave_the_deferral",
+      "behavior_text": "a deferred doc that later errors leaves the in-memory retry schedule",
+      "contract_text": "a deferred doc that later errors leaves the in-memory retry schedule",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 98
+    },
+    {
+      "id": "e97",
+      "obligation_ref": "o6",
+      "test_ref": "tests/test_enrich_worker.py::test_held_pending_prunes_docs_no_longer_pending",
+      "behavior_text": "a deferred doc that is deleted is pruned from the retry schedule on the next cycle",
+      "contract_text": "a deferred doc that is deleted is pruned from the retry schedule on the next cycle",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 99
+    },
+    {
+      "id": "e98",
+      "obligation_ref": "o8",
+      "test_ref": "tests/test_gateway_chat.py::test_default_chat_model_has_one_source",
+      "behavior_text": "gateway.CHAT_MODEL is config.DEFAULT_CHAT_MODEL (one source)",
+      "contract_text": "gateway.CHAT_MODEL is config.DEFAULT_CHAT_MODEL (one source)",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 100
+    },
+    {
+      "id": "e99",
+      "obligation_ref": "o16",
+      "test_ref": "tests/test_web_chat.py::test_numbers_beyond_any_source_are_text_not_markers",
+      "behavior_text": "a bracketed number above 99 such as [2025] stays as text; out-of-range small markers are still dropped",
+      "contract_text": "a bracketed number above 99 such as [2025] stays as text; out-of-range small markers are still dropped",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 101
+    },
+    {
+      "id": "e100",
+      "obligation_ref": "o16",
+      "test_ref": "tests/test_web_chat.py::test_history_answers_lose_their_old_markers",
+      "behavior_text": "assistant history turns are sent without their [k] markers; user turns are unchanged",
+      "contract_text": "assistant history turns are sent without their [k] markers; user turns are unchanged",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 102
+    },
+    {
+      "id": "e101",
+      "obligation_ref": "o15",
+      "test_ref": "tests/test_cli_runtime_lock.py::test_a_slow_build_does_not_block_other_accessors",
+      "behavior_text": "a slow accessor build does not block cached or other accessors",
+      "contract_text": "a slow accessor build does not block cached or other accessors",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false,
+      "seq": 103
+    },
+    {
+      "id": "e102",
+      "obligation_ref": "o22",
+      "test_ref": "live: operator probe questions on pocketchat",
+      "behavior_text": "operator asked probe questions on the demo and on pocketchat.culture.dev and reports they worked",
+      "contract_text": "3/3 probe questions rank the expected recording first",
+      "evidence_type": "manual",
+      "strength": "execution",
+      "strength_basis": "operator report in session 2026-10-17: 'I tested on demo and worked on the real thing' (live build ca5fb75)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:49",
+        "commit": "ca5fb75"
+      },
+      "origin": "user",
+      "status": "approved",
+      "superseded": false,
+      "seq": 104
+    }
+  ],
+  "deltas": [
+    {
+      "id": "b1",
+      "kind": "amended",
+      "behavior_text": "a stale vector index is dropped and re-created when atlas-local rejects updateSearchIndex for vectorSearch (in-place update first)",
+      "caused_by": [
+        "c11"
+      ],
+      "evidence_refs": [
+        "e44"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": true
+    },
+    {
+      "id": "b2",
+      "kind": "added",
+      "behavior_text": "the pocketchat page carries a motion layer: recordings waveform hero, listening bars, word-by-word answers, sweeping marks, citation fly-to-reader, view transitions; all disabled under prefers-reduced-motion",
+      "caused_by": [
+        "d1"
+      ],
+      "evidence_refs": [
+        "e74"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": true
+    },
+    {
+      "id": "b3",
+      "kind": "added",
+      "behavior_text": "the web API accepts singular and plural spellings for repeatable params (label/labels, id/ids); both at once is 400",
+      "caused_by": [
+        "c16"
+      ],
+      "evidence_refs": [
+        "e60"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": true
+    },
+    {
+      "id": "b4",
+      "kind": "added",
+      "behavior_text": "Runtime lazy accessors are serialized by a re-entrant lock so the threaded web server never builds two clients",
+      "caused_by": [
+        "c16"
+      ],
+      "evidence_refs": [],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b5",
+      "kind": "amended",
+      "behavior_text": "query embeddings use prompt_name 'query' (lowercase); the gateway rejects 'Query' (pending deviation d2)",
+      "caused_by": [
+        "c10"
+      ],
+      "evidence_refs": [
+        "e31"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b6",
+      "kind": "amended",
+      "behavior_text": "a stale vector index is dropped and re-created when atlas-local rejects updateSearchIndex for vectorSearch (in-place update first)",
+      "caused_by": [
+        "c11"
+      ],
+      "evidence_refs": [
+        "e34"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b7",
+      "kind": "added",
+      "behavior_text": "the pocketchat page carries a motion layer: recordings waveform hero, listening bars, word-by-word answers, sweeping marks, citation fly-to-reader, view transitions; all disabled under prefers-reduced-motion (static safety test still green)",
+      "caused_by": [
+        "d1"
+      ],
+      "evidence_refs": [
+        "e67"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b8",
+      "kind": "added",
+      "behavior_text": "the web API accepts singular and plural spellings for repeatable params (label/labels, id/ids); both at once is 400 (tests/test_web_server.py::test_search_rejects_both_label_spellings)",
+      "caused_by": [
+        "c16"
+      ],
+      "evidence_refs": [],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b9",
+      "kind": "amended",
+      "behavior_text": "search also degrades to keyword mode when the $vectorSearch stage fails (index rebuilding or missing a filter field), reason 'vector search failed: <type>'",
+      "caused_by": [
+        "c38"
+      ],
+      "evidence_refs": [
+        "e89"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b10",
+      "kind": "amended",
+      "behavior_text": "vindex drops and re-creates an index only on atlas-local's in-place-update refusal; other update errors leave it untouched; a drop still listed after 10 min raises IndexStillDropping (serve warns) instead of creating blind",
+      "caused_by": [
+        "b6"
+      ],
+      "evidence_refs": [
+        "e90",
+        "e91"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b11",
+      "kind": "amended",
+      "behavior_text": "since/until accept any ISO form (basic date, space separator, UTC offset, fraction) and are normalised to UTC before comparing with recording_at; enrich uses the same parser",
+      "caused_by": [
+        "c10"
+      ],
+      "evidence_refs": [
+        "e92",
+        "e93"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b12",
+      "kind": "amended",
+      "behavior_text": "enrich never selects recordings merged into another",
+      "caused_by": [
+        "c4"
+      ],
+      "evidence_refs": [
+        "e94"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b13",
+      "kind": "amended",
+      "behavior_text": "a taxonomy change requeues stale docs in classify mode with a generation bump (no re-embedding)",
+      "caused_by": [
+        "c5"
+      ],
+      "evidence_refs": [
+        "e95"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b14",
+      "kind": "amended",
+      "behavior_text": "the worker's in-memory retry schedule drops docs once they finish, error, go stale or stop being pending",
+      "caused_by": [
+        "c6"
+      ],
+      "evidence_refs": [
+        "e96",
+        "e97"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b15",
+      "kind": "amended",
+      "behavior_text": "chat keeps bracketed numbers above 99 (e.g. [2025]) as text and strips [k] markers from assistant history turns",
+      "caused_by": [
+        "c17"
+      ],
+      "evidence_refs": [
+        "e99",
+        "e100"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b16",
+      "kind": "amended",
+      "behavior_text": "runtime accessors lock per key and read cached values lock-free, so a slow build blocks only its own accessor",
+      "caused_by": [
+        "b4"
+      ],
+      "evidence_refs": [
+        "e101"
+      ],
+      "origin": "llm",
+      "status": "approved",
+      "superseded": false
+    }
+  ],
+  "supersessions": [
+    {
+      "id": "s1",
+      "action": "supersede",
+      "target_ref": "b1",
+      "replacement_ref": "b6",
+      "origin": "user"
+    },
+    {
+      "id": "s2",
+      "action": "supersede",
+      "target_ref": "b2",
+      "replacement_ref": "b7",
+      "origin": "user"
+    },
+    {
+      "id": "s3",
+      "action": "supersede",
+      "target_ref": "b3",
+      "replacement_ref": "b8",
+      "origin": "user"
+    }
+  ]
+}

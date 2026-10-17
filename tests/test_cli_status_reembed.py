@@ -159,3 +159,31 @@ def test_status_and_doctor_report_retrying_and_failed_enrichment(rt, capsys):
     text = capsys.readouterr().out
     assert "enrichment retrying" in text
     assert "enrichment failed" in text
+
+
+def test_status_reports_enrichment_deferred(rt, capsys):
+    for rid in ("r0001", "r0002", "r0003"):
+        land(rid, rt.pocket, files_sink=rt.files, store_sink=rt.store)
+    for rid, reason, when in (
+        ("r0001", "gateway 503", 2_000_000_000.0),
+        ("r0002", "embed lane down", 1_900_000_000.0),
+    ):
+        h = rt.store.collection.find_one({"_id": rid})["content_hash"]
+        assert rt.store.set_deferred(rid, h, 0, reason, when)
+    assert main(["status", "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    d = out["enrichment_deferred"]
+    assert d["count"] == 2
+    assert d["next_attempt_at"] == "2030-03-17T17:46:40Z"
+    assert sorted(d["reasons"]) == ["embed lane down", "gateway 503"]
+    assert out["enrichment_backlog"] == 3
+    assert main(["status"]) == 0
+    text = capsys.readouterr().out
+    assert "enrichment deferred" in text
+    assert "embed lane down" in text
+
+
+def test_status_enrichment_deferred_empty(rt, capsys):
+    assert main(["status", "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["enrichment_deferred"] == {"count": 0, "next_attempt_at": None, "reasons": []}

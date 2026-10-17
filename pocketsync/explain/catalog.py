@@ -28,7 +28,18 @@ outbox that culture-rules workflows trigger on. It does not route data further.
 - `pocketsync status` — watermark, last run, webhook health, backlog, errors.
 - `pocketsync reembed [--apply]` — queue recordings embedded with another model.
 
-Write verbs (`sync`, `reembed`) are dry runs unless `--apply`.
+## Talk-to-recordings verbs
+
+- `pocketsync enrich <selectors> [--only MODE] [--apply]` — re-queue a selection for enrichment.
+- `pocketsync search <query>` — semantic search (keyword fallback).
+- `pocketsync get <id>` — one stored recording (no vectors).
+- `pocketsync transcript <id> [--start S] [--end S]` — speaker-attributed segments.
+- `pocketsync recordings` — stored recordings, newest first.
+- `pocketsync actions` — action items across recordings (open only by default).
+- `pocketsync mcp` — the same verbs as MCP tools over stdio (`pocketsync[mcp]`).
+- `pocketsync web` — the private chat site over the same verbs (loopback).
+
+Write verbs (`sync`, `reembed`, `enrich`) are dry runs unless `--apply`.
 
 ## Introspection verbs
 
@@ -50,6 +61,8 @@ Write verbs (`sync`, `reembed`) are dry runs unless `--apply`.
 
 - `pocketsync explain sync`
 - `pocketsync explain serve`
+- `pocketsync explain search`
+- `pocketsync explain enrich`
 - `pocketsync explain doctor`
 """
 
@@ -302,6 +315,159 @@ only lists their ids. With `--apply` it sets exactly those documents'
     pocketsync reembed --apply --json
 """
 
+_ENRICH = """\
+# pocketsync enrich
+
+Selects recordings and re-queues them for enrichment. **Dry run unless
+`--apply`**: it lists the selected ids, their count, the mode and an estimate of
+gateway calls, and writes nothing. With `--apply` it flips exactly those
+documents to `enrichment.status = pending` (attempts 0, error and deferral
+cleared, generation bumped) and the enrichment worker (`serve`, or
+`sync --apply`) does the work. Recordings deleted in Pocket, or merged into
+another recording, are never selected.
+
+## Selectors (at least one; they combine with AND)
+
+- `--all` — every live recording;
+- `--since DATE` / `--until DATE` — on `recording_at`, read exactly as the
+  read verbs read them (any ISO date or datetime, offsets honoured; a date is
+  inclusive);
+- `--id ID` — repeatable;
+- `--label LABEL` — recordings carrying that label;
+- `--status pending|done|error` — e.g. `--status error` to retry failures.
+
+## Mode
+
+- `--only classify` — re-run the type labels only; vectors kept (1 call/doc);
+- `--only embed` — re-embed only; labels kept (1 call/doc);
+- omitted or `--only all` — both (2 calls/doc).
+
+## Usage
+
+    pocketsync enrich --status error
+    pocketsync enrich --since 2026-10-01 --only classify --apply --json
+
+The same operation is the MCP `enrich` tool and the site's Re-enrich button.
+"""
+
+_SEARCH = """\
+# pocketsync search
+
+Semantic search over the stored recordings. Read-only. The query is embedded
+with gemma2-embed (`prompt_name` query) and matched against the chunk and
+summary vector indexes; each result lists the recording id, title,
+`recording_at`, labels, score and its best-matching chunks with `start`/`end`
+offsets in seconds. Vectors are never returned. Deleted and merged recordings
+never appear. When query embedding or the vector search fails (an index
+being rebuilt, say), search falls back to a case-insensitive keyword match
+and says so (`mode: keyword`, plus `reason`).
+
+## Filters
+
+- `--label LABEL` (repeatable), `--since DATE`, `--until DATE`;
+- `--has-action-items` / `--no-has-action-items` (omit: either);
+- `--exclude-sensitive` — opt-in; sensitive recordings are included by default;
+- `--limit N` — default 10.
+
+## Usage
+
+    pocketsync search "what did we decide about the budget"
+    pocketsync search budget --label meeting --since 2026-10-01 --json
+"""
+
+_GET = """\
+# pocketsync get
+
+One stored recording by id: title, `recording_at`, duration, speakers, tags,
+summary, action items, labels, filter scores, enrichment status and file paths.
+Read-only; no transcript segments (see `transcript`) and no vectors. An
+unknown id exits 1.
+
+## Usage
+
+    pocketsync get <recording-id>
+    pocketsync get <recording-id> --json
+"""
+
+_TRANSCRIPT = """\
+# pocketsync transcript
+
+A stored recording's speaker-attributed transcript segments (`start`, `end`,
+`text`, `speaker`, `speaker_name`). `--start S` / `--end S` (seconds) keep only
+the segments overlapping that window, which is how a search hit's chunk
+offsets are opened. Read-only.
+
+## Usage
+
+    pocketsync transcript <recording-id>
+    pocketsync transcript <recording-id> --start 120 --end 180 --json
+"""
+
+_RECORDINGS = """\
+# pocketsync recordings
+
+Stored recordings in pocketsync-mongo, newest first: id, title,
+`recording_at`, duration, labels, action-item count and enrichment status.
+Deleted and merged recordings are left out. Read-only. (`pocketsync list`
+shows the *remote* Pocket recordings instead.)
+
+## Filters
+
+`--since DATE`, `--until DATE`, `--label LABEL`, `--exclude-sensitive`
+(opt-in), `--limit N` (default 50).
+
+## Usage
+
+    pocketsync recordings --since 2026-10-01
+    pocketsync recordings --label meeting --json
+"""
+
+_ACTIONS = """\
+# pocketsync actions
+
+Action items across the stored recordings, newest recording first, each with
+its recording id, title, `recording_at`, index, text, done flag and owner.
+Open items only by default (`--no-open-only` for all). `--exclude-sensitive`
+is opt-in; `--limit N` caps the number of items. Read-only.
+
+## Usage
+
+    pocketsync actions
+    pocketsync actions --no-open-only --json
+"""
+
+_MCP = """\
+# pocketsync mcp
+
+Serves the verb registry — `search`, `get`, `transcript`, `recordings`,
+`actions` and `enrich` — as MCP tools over stdio, for any agent harness. Each
+tool has the same parameters and returns the same JSON as the CLI verb;
+`enrich` takes `apply` (default false: dry run). stdout carries only the MCP
+protocol. Needs the `pocketsync[mcp]` extra: without it the verb exits 2 with
+an install hint and writes nothing to stdout.
+
+## Usage
+
+    pip install 'pocketsync[mcp]'
+    pocketsync mcp
+"""
+
+_WEB = """\
+# pocketsync web
+
+Runs the private chat site: one page plus a JSON API over the same verb
+registry (search, recordings, transcript, actions, enrich) and a chat endpoint
+that answers from retrieved chunks only, with citations. Binds loopback only,
+on `--port` (default `POCKETSYNC_WEB_PORT`, 8788), and verifies the Cloudflare
+Access JWT on every request; `--no-access-check` is for loopback development
+only. If this build has no web server the verb exits 2 with a hint.
+
+## Usage
+
+    pocketsync web
+    pocketsync web --port 8790 --no-access-check
+"""
+
 
 ENTRIES: dict[tuple[str, ...], str] = {
     (): _ROOT,
@@ -320,4 +486,12 @@ ENTRIES: dict[tuple[str, ...], str] = {
     ("serve",): _SERVE,
     ("status",): _STATUS,
     ("reembed",): _REEMBED,
+    ("enrich",): _ENRICH,
+    ("search",): _SEARCH,
+    ("get",): _GET,
+    ("transcript",): _TRANSCRIPT,
+    ("recordings",): _RECORDINGS,
+    ("actions",): _ACTIONS,
+    ("mcp",): _MCP,
+    ("web",): _WEB,
 }

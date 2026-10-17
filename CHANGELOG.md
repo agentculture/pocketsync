@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/). This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-10-16
+
+### Added
+
+- pocketsync enrich: on-demand, retroactive re-enrichment (all/since/until/id/label/status selectors; --only classify|embed; dry-run unless --apply) on CLI, MCP and the web page (#8)
+- Read verbs search, get, transcript, recordings and actions over pocketsync-mongo (vector search with keyword fallback), driven by one verb registry with CLI and MCP parity tests
+- pocketsync mcp: stdio MCP server exposing the same verbs (pocketsync[mcp] extra) (#9)
+- pocketsync web: pocketchat, a private RAG chat site with citations to recording moments, transcript reader, recordings and to-dos views and a Re-enrich button; Access JWT verified on every request; deploy unit and runbook for pocketchat.culture.dev (#10)
+- Event pocketsync.recording.reclassified when labels change without a content change
+- Settings POCKETSYNC_CHAT_MODEL (default unsloth/Qwen3.8-27B-NVFP4), POCKETSYNC_WEB_PORT, POCKETSYNC_ACCESS_TEAM_DOMAIN, POCKETSYNC_ACCESS_AUD, POCKETSYNC_SITE_ORIGIN
+
+### Changed
+
+- Enrichment re-queues carry a generation counter so an in-flight run cannot overwrite a re-queue; gateway deferrals are persisted with their reason and status reports enrichment_deferred
+- Vector indexes gain enrichment.filters.sensitive and has_action_items filter fields, updated in place on serve start
+- The no-UI non-goal is amended to: UI only as a thin client over the CLI/MCP surface
+
+### Fixed
+
+- Runtime lazy accessors are thread-safe, with one lock per accessor so a slow Mongo connect blocks only its own callers
+- search falls back to keyword mode when the vector search stage fails (index rebuilding or missing a filter field), not only when query embedding fails
+- Vector index re-create: only atlas-local's in-place-update refusal triggers a drop; a transient error leaves the index alone, and a drop that is still in progress after 10 minutes is reported instead of re-created blind
+- since/until accept every ISO form (basic dates, space separator, UTC offsets) and mean the same instant in search, recordings, actions, chat and enrich (enrich now shares the read verbs' parser)
+- enrich never selects merged recordings
+- A taxonomy change re-queues in classify mode with a generation bump (no re-embedding)
+- The enrichment worker's in-memory retry schedule no longer grows without bound
+- One source for the default chat model (config)
+- pocketchat keeps bracketed numbers like [2025] as text and strips old citation markers from chat history
+
 ## [0.11.1] - 2026-10-16
 
 ### Added

@@ -164,3 +164,70 @@ def test_default_envelope_passes_events_cli_validation(tmp_path):
     envelope, topic = _default_envelope(event)
     assert envelope.source == SOURCE == "agent://pocketsync"
     assert topic
+
+
+def _reclass(box, rid="r1", h="h1", labels=("call",), generation=1):
+    from pocketsync.events import RECLASSIFIED_EVENT_TYPE  # noqa: F401
+
+    return box.append_reclassified(
+        rid,
+        h,
+        labels=list(labels),
+        previous_labels=["meeting"],
+        generation=generation,
+        mongo={"collection": "recordings", "doc_id": rid},
+        files={"meta": f"2026/10/{rid}/meta.json"},
+        taxonomy_version="2",
+        model="m",
+    )
+
+
+def test_reclassified_schema_and_labels_digest_dedupe(tmp_path):
+    from pocketsync.events import RECLASSIFIED_EVENT_TYPE, labels_digest
+
+    box = Outbox(tmp_path)
+    _emit(box)
+    ev = _reclass(box)
+    assert ev["type"] == RECLASSIFIED_EVENT_TYPE == "pocketsync.recording.reclassified"
+    assert ev["recording_id"] == "r1"
+    assert ev["content_hash"] == "h1"
+    assert ev["enrichment"]["labels"] == ["call"]
+    assert ev["enrichment"]["previous_labels"] == ["meeting"]
+    assert ev["enrichment"]["labels_digest"] == labels_digest(["call"])
+    assert ev["enrichment"]["generation"] == 1
+    assert ev["sinks"]["mongo"] == {"collection": "recordings", "doc_id": "r1"}
+    assert ev["event_id"]
+    assert ev["emitted_at"]
+    assert _reclass(box) is None  # a retry does not double-publish
+    assert _reclass(Outbox(tmp_path)) is None  # the key survives a reload
+    assert _reclass(box, labels=("todo",))["enrichment"]["labels"] == ["todo"]
+    assert _reclass(box, labels=("call",), generation=2) is not None  # a later requeue
+    # the enriched dedupe is unchanged by reclassified lines
+    assert _emit(Outbox(tmp_path)) is None
+    assert _emit(Outbox(tmp_path), h="h2")["change"] == "updated"
+
+
+def test_labels_digest_ignores_order():
+    from pocketsync.events import labels_digest
+
+    assert labels_digest(["a", "b"]) == labels_digest(["b", "a"])
+    assert labels_digest(["a"]) != labels_digest(["b"])
+
+
+def test_reclassified_envelope_passes_events_cli_validation(tmp_path):
+    pytest = __import__("pytest")
+    pytest.importorskip("events_cli")
+    from pocketsync.events import _default_envelope
+
+    box = Outbox(tmp_path)
+    envelope, topic = _default_envelope(_reclass(box))
+    assert topic
+
+
+def test_reclassified_dedupe_key_includes_taxonomy_version(tmp_path):
+    box = Outbox(tmp_path)
+    kw = dict(labels=["call"], previous_labels=["a"], generation=0)
+    assert box.append_reclassified("r1", "h1", taxonomy_version="2", **kw) is not None
+    assert box.append_reclassified("r1", "h1", taxonomy_version="2", **kw) is None
+    assert box.append_reclassified("r1", "h1", taxonomy_version="3", **kw) is not None
+    assert Outbox(tmp_path).append_reclassified("r1", "h1", taxonomy_version="3", **kw) is None

@@ -40,11 +40,15 @@ enriches each recording and emits one handoff event.
 route the data onward, so the on-disk layout, the mongo document shape and the
 event stream are a public contract.
 
-**Status: sync engine built (0.11.0); live deploy pending.** The shape below
+**Status: sync engine built (0.12.0); live deploy pending.** The shape below
 is on disk except where an item is marked *(planned)*: the Pocket adapter, the
 webhook receiver (with a durable inbox), landing, the `local` and `mongo`
-sinks, the reconciler, enrichment, the event outbox, and the CLI verbs `auth`,
-`list`, `sync`, `watch`, `serve`, `status` and `reembed`. The operator deploy
+sinks, the reconciler, enrichment (modes full/classify/embed), the event
+outbox (`enriched` and `reclassified` events), the CLI verbs `auth`, `list`,
+`sync`, `watch`, `serve`, `status` and `reembed`, the talk-to-recordings verbs
+`enrich`, `search`, `get`, `transcript`, `recordings` and `actions`, the MCP
+server `pocketsync mcp` (extra `pocketsync[mcp]`) and the private web page
+`pocketsync web` (API in [`docs/web-api.md`](docs/web-api.md)). The operator deploy
 and acceptance run are
 [issue #3](https://github.com/agentculture/pocketsync/issues/3). The
 requirements baseline is the spec
@@ -72,8 +76,15 @@ Shape:
   and lobes decider type labels.
 - Idempotent, content-hash incremental sync; one event per recording after
   enrichment via events-cli (QoS 1) with an `events.jsonl` outbox.
-- Optional extras `pocketsync[mongo]` and `pocketsync[events]` (plus
-  `pocketsync[s3]` *(planned)*); the core stays dependency-free.
+- Optional extras `pocketsync[mongo]`, `pocketsync[events]` and
+  `pocketsync[mcp]` (plus `pocketsync[s3]` *(planned)*); the core stays
+  dependency-free.
+- One verb registry (`pocketsync/verbs.py`) feeds the CLI, the MCP server and
+  the web API. The UI is only a thin client over that CLI/MCP surface. All
+  recordings are searchable by default (operator decision, internal network);
+  `exclude_sensitive` is opt-in; the chat model and embeddings run on the
+  operator's lobes gateway; the site is behind Cloudflare Access with no
+  Bypass and the server verifies the Access JWT on every request.
 
 `CLAUDE.md` is written for a Claude Code session working *on* the repo. It is
 not your runtime prompt, but it is the fullest write-up of the

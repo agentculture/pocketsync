@@ -390,3 +390,246 @@ def test_success_and_requeues_reset_the_attempt_counter(store, outbox):
     store.collection.update_one({"_id": "r1"}, {"$set": {"enrichment.attempts": 7}})
     mark_for_reclassification(store, "other-tax")
     assert doc(store)["enrichment"]["attempts"] == 0
+
+
+# -- t6: modes, generation CAS, persisted deferrals, reclassified event ---------------------
+
+from pocketsync.events import RECLASSIFIED_EVENT_TYPE  # noqa: E402
+from pocketsync.sinks.mongo import MODE_CLASSIFY, MODE_EMBED, MODE_FULL  # noqa: E402
+
+
+class LabelGateway(FakeGateway):
+    """A FakeGateway whose classifier result is settable and whose calls are counted."""
+
+    def __init__(self, labels=("meeting",), **kw):
+        super().__init__(**kw)
+        self.labels = list(labels)
+        self.embed_calls = 0
+        self.classify_calls = 0
+
+    def embed(self, texts):
+        self.embed_calls += 1
+        return super().embed(texts)
+
+    def classify(self, text):
+        self.classify_calls += 1
+        self.classify_inputs.append(text)
+        return Classification(list(self.labels), 0.9, {}, {"urgent": 0.2}, self.tax)
+
+
+def _enriched(store, outbox, gw=None):
+    store.put_recording(rec())
+    gw = gw or LabelGateway()
+    assert EnrichmentWorker(store, gw, outbox).run_once()["done"] == 1
+    return gw
+
+
+def test_classify_mode_reuses_stored_text_and_keeps_vectors(store, outbox):
+    _enriched(store, outbox)
+    before = doc(store)["enrichment"]
+    store.requeue(["r1"], MODE_CLASSIFY)
+    gw = LabelGateway(labels=["call"], tax="tax-v2")
+    assert EnrichmentWorker(store, gw, outbox).run_once()["done"] == 1
+    assert gw.embed_calls == 0
+    assert gw.classify_calls == 1
+    assert "a summary" in gw.classify_inputs[0]
+    assert "hello there" in gw.classify_inputs[0]
+    e = doc(store)["enrichment"]
+    assert e["status"] == "done"
+    assert e["labels"] == ["call"]
+    assert e["filters"] == {"urgent": 0.2}
+    assert e["taxonomy_version"] == "tax-v2"
+    assert e["chunks"] == before["chunks"]
+    assert e["summary_vector"] == before["summary_vector"]
+    assert e["mode"] == MODE_FULL  # reset so a later content change runs full
+
+
+def test_embed_mode_keeps_labels_and_filters(store, outbox):
+    _enriched(store, outbox)
+    before = doc(store)["enrichment"]
+    store.requeue(["r1"], MODE_EMBED)
+    gw = LabelGateway(labels=["other"], tax="tax-v2")
+    assert EnrichmentWorker(store, gw, outbox).run_once()["done"] == 1
+    assert gw.classify_calls == 0
+    assert gw.embed_calls == 1
+    e = doc(store)["enrichment"]
+    assert e["labels"] == before["labels"]
+    assert e["filters"] == before["filters"]
+    assert e["taxonomy_version"] == before["taxonomy_version"]
+    assert len(e["chunks"]) == len(before["chunks"])
+    assert len(e["summary_vector"]) == EMBED_DIMS
+    assert e["mode"] == MODE_FULL
+    assert [x["type"] for x in events(outbox)] == ["pocketsync.recording.enriched"]
+
+
+def test_full_mode_requeue_runs_embed_and_classify(store, outbox):
+    _enriched(store, outbox)
+    store.requeue(["r1"], MODE_FULL)
+    gw = LabelGateway()
+    assert EnrichmentWorker(store, gw, outbox).run_once()["done"] == 1
+    assert gw.embed_calls == 1
+    assert gw.classify_calls == 1
+
+
+def test_classify_mode_without_stored_vectors_falls_back_to_full(store, outbox):
+    store.put_recording(rec())
+    store.requeue(["r1"], MODE_CLASSIFY)  # never embedded: no stored chunk text to reuse
+    gw = LabelGateway()
+    assert EnrichmentWorker(store, gw, outbox).run_once()["done"] == 1
+    assert gw.embed_calls == 1
+    assert len(doc(store)["enrichment"]["chunks"]) == 1
+
+
+def test_requeue_during_processing_is_not_overwritten(store, outbox):
+    store.put_recording(rec())
+    gw = LabelGateway()
+    gw.on_embed = lambda: store.requeue(["r1"], MODE_FULL)
+    w = EnrichmentWorker(store, gw, outbox)
+    s = w.run_once()
+    assert s["stale"] == 1
+    assert s["done"] == 0
+    e = doc(store)["enrichment"]
+    assert e["status"] == "pending"
+    assert e["generation"] == 1
+    assert "labels" not in e
+    assert events(outbox) == []
+    gw.on_embed = None
+    assert w.run_once()["done"] == 1  # re-processed on the next cycle
+    assert doc(store)["enrichment"]["status"] == "done"
+    assert len(events(outbox)) == 1
+
+
+def test_requeue_during_a_failing_run_keeps_it_pending(store, outbox):
+    store.put_recording(rec())
+
+    class RequeueThenFail(FakeGateway):
+        def embed(self, texts):
+            store.requeue(["r1"], MODE_FULL)
+            raise CliError(2, "bad vectors", "check model")
+
+    s = EnrichmentWorker(store, RequeueThenFail(), outbox, wall_clock=Wall()).run_once()
+    assert s["stale"] == 1
+    e = doc(store)["enrichment"]
+    assert e["status"] == "pending"
+    assert "error" not in e
+
+
+def test_unavailable_persists_the_deferral_and_survives_restart(store, outbox):
+    store.put_recording(rec())
+    wall = Wall()
+    w1 = EnrichmentWorker(
+        store, FakeGateway(fail_first=1, retry_after="30"), outbox, wall_clock=wall
+    )
+    assert w1.run_once()["unavailable"] == 1
+    e = doc(store)["enrichment"]
+    assert e["status"] == "pending"
+    assert e["deferred_reason"] == "503"
+    assert e["next_attempt_at"] == wall.t + 30
+    # a restarted worker (fresh in-memory state) skips the doc until it is due
+    gw2 = FakeGateway()
+    w2 = EnrichmentWorker(store, gw2, outbox, wall_clock=wall)
+    wall.t += 10
+    assert w2.run_once()["done"] == 0
+    assert gw2.calls == 0
+    wall.t += 25
+    assert w2.run_once()["done"] == 1
+    e = doc(store)["enrichment"]
+    assert e["status"] == "done"
+    assert "deferred_reason" not in e
+    assert "next_attempt_at" not in e
+
+
+def test_unavailable_deferral_uses_backoff_without_retry_after(store, outbox):
+    store.put_recording(rec())
+    wall = Wall()
+    w = EnrichmentWorker(store, FakeGateway(fail_first=1), outbox, wall_clock=wall, backoff_base=7)
+    w.run_once()
+    assert doc(store)["enrichment"]["next_attempt_at"] == wall.t + 7
+
+
+def test_requeue_clears_an_in_memory_deferral(store, outbox):
+    store.put_recording(rec())
+    clk = Clock()
+    gw = FakeGateway(fail_first=1, retry_after="300")
+    w = EnrichmentWorker(store, gw, outbox, clock=clk)
+    assert w.run_once()["unavailable"] == 1
+    store.requeue(["r1"], MODE_FULL)  # operator asks for it now
+    assert w.run_once()["done"] == 1
+
+
+def test_label_change_with_same_content_emits_one_reclassified_event(store, outbox):
+    _enriched(store, outbox)
+    store.requeue(["r1"], MODE_CLASSIFY)
+    gw = LabelGateway(labels=["call", "todo"], tax="tax-v2")
+    w = EnrichmentWorker(store, gw, outbox)
+    w.run_once()
+    evs = events(outbox)
+    assert [x["type"] for x in evs] == ["pocketsync.recording.enriched", RECLASSIFIED_EVENT_TYPE]
+    rc = evs[1]
+    assert rc["recording_id"] == "r1"
+    assert rc["content_hash"] == evs[0]["content_hash"]
+    assert rc["enrichment"]["labels"] == ["call", "todo"]
+    assert rc["enrichment"]["previous_labels"] == ["meeting"]
+    assert rc["enrichment"]["taxonomy_version"] == "tax-v2"
+    # same labels again: no further event
+    store.requeue(["r1"], MODE_CLASSIFY)
+    w.run_once()
+    assert len(events(outbox)) == 2
+
+
+def test_unchanged_labels_emit_no_reclassified_event(store, outbox):
+    _enriched(store, outbox)
+    store.requeue(["r1"], MODE_CLASSIFY)
+    EnrichmentWorker(store, LabelGateway(), outbox).run_once()
+    assert [x["type"] for x in events(outbox)] == ["pocketsync.recording.enriched"]
+
+
+def test_content_change_emits_enriched_not_reclassified(store, outbox):
+    _enriched(store, outbox)
+    store.put_recording(rec(summary="new summary"))
+    EnrichmentWorker(store, LabelGateway(labels=["call"]), outbox).run_once()
+    assert [x["type"] for x in events(outbox)] == ["pocketsync.recording.enriched"] * 2
+
+
+def test_taxonomy_change_reclassifies_without_embedding(store, outbox):
+    store.put_recording(rec("r1"))
+    EnrichmentWorker(store, FakeGateway(tax="tax-old"), outbox).run_once()
+    gen = doc(store)["enrichment"].get("generation") or 0
+    gw = FakeGateway(tax=TAX)
+    w = EnrichmentWorker(store, gw, outbox)
+    assert w.reclassify_stale(TAX) == 1
+    e = doc(store)["enrichment"]
+    assert (e["mode"], e["generation"]) == ("classify", gen + 1)
+    w.run_once()
+    assert gw.embed_inputs == []
+    assert doc(store)["enrichment"]["taxonomy_version"] == TAX
+
+
+def test_retry_schedule_forgets_docs_that_leave_the_deferral(store, outbox):
+    store.put_recording(rec("r1"))
+    clock = Clock()
+
+    class DownThenBroken(FakeGateway):
+        def embed(self, texts):
+            if self.calls == 0:
+                self.calls += 1
+                raise EnrichmentUnavailable("503")
+            raise CliError(2, "bad vectors", "check model")
+
+    w = EnrichmentWorker(store, DownThenBroken(), outbox, clock=clock, wall_clock=clock)
+    w.run_once()
+    assert "r1" in w._retry
+    clock.t += 3600
+    assert w.run_once()["errors"] == 1
+    assert w._retry == {}
+
+
+def test_held_pending_prunes_docs_no_longer_pending(store, outbox):
+    store.put_recording(rec("r1"))
+    clock = Clock()
+    w = EnrichmentWorker(store, FakeGateway(fail_first=1), outbox, clock=clock, wall_clock=clock)
+    w.run_once()
+    assert "r1" in w._retry
+    store.tombstone("r1", "2026-05-02T00:00:00Z")
+    w.run_once()
+    assert w._retry == {}

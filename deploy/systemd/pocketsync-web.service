@@ -1,0 +1,32 @@
+# systemd USER unit: `pocketsync web` (the private pocketchat site: static page + JSON API
+# over the verb registry, chat with citations) on the serving host, loopback only.
+# Install (no root) as ~/.config/systemd/user/pocketsync-web.service, then:
+#   systemctl --user daemon-reload && systemctl --user enable --now pocketsync-web
+#   loginctl enable-linger "$USER"
+# Secrets are HIDDEN entries in the unit user's grant store. `grant run --inject` hands
+# them to pocketsync as env vars at exec time: they are on no disk path, not in argv and
+# not in this file. The web verb needs only the Mongo URI and the gateway key (it never
+# talks to Pocket). The Access team domain and AUD tag are not secrets. Placeholders
+# (@NAME@) are filled by the operator; see docs/operations/pocketchat-culture-dev.md.
+[Unit]
+Description=pocketsync web (pocketchat site + API over the recordings, 127.0.0.1 only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=POCKETSYNC_WEB_PORT=@WEB_PORT@
+Environment=POCKETSYNC_ACCESS_TEAM_DOMAIN=@ACCESS_TEAM_DOMAIN@
+Environment=POCKETSYNC_ACCESS_AUD=@ACCESS_AUD@
+ExecStart=%h/.local/bin/grant run \
+  --inject POCKETSYNC_GATEWAY_API_KEY=@GATEWAY_API_KEY_SECRET@ \
+  --inject POCKETSYNC_MONGO_URI=@MONGO_URI_SECRET@ \
+  -- %h/.local/bin/pocketsync web
+Restart=on-failure
+RestartSec=5
+# web stops on SIGTERM and exits 0.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

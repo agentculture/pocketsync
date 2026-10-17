@@ -1,4 +1,4 @@
-"""Factory seam: build the Pocket source, sinks, state, gateway and outbox from Settings.
+"""Factory seam: build the Pocket source, sinks, state, gateway lanes and outbox from Settings.
 
 Every operational verb gets its collaborators from :func:`build` (via :func:`get`), never by
 constructing clients itself. Tests monkeypatch :data:`build` (or hand a ready
@@ -13,6 +13,7 @@ client constructors; nothing here prints or logs them.
 from __future__ import annotations
 
 import json
+import threading
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -47,11 +48,24 @@ class Runtime:
     def __init__(self, settings: config.Settings | None = None) -> None:
         self.settings = settings if settings is not None else config.load()
         self._cache: dict[str, Any] = {}
+        # One lock per key, so a slow build (Mongo server selection) blocks only callers of
+        # that accessor; cached values are read without any lock. Re-entrant: an accessor
+        # may build another (store_sink -> database) and the threaded web server can hit
+        # the same accessor from two requests at once.
+        self._locks: dict[str, threading.RLock] = {}
+        self._locks_guard = threading.Lock()
 
     def _once(self, key: str, make: Callable[[], Any]) -> Any:
-        if key not in self._cache:
-            self._cache[key] = make()
-        return self._cache[key]
+        try:
+            return self._cache[key]
+        except KeyError:
+            pass
+        with self._locks_guard:
+            lock = self._locks.setdefault(key, threading.RLock())
+        with lock:
+            if key not in self._cache:
+                self._cache[key] = make()
+            return self._cache[key]
 
     # -- paths ---------------------------------------------------------------------------
 
@@ -155,6 +169,29 @@ class Runtime:
             )
 
         return self._once("gateway", make)
+
+    def chat(self) -> Any:
+        """The gateway client for the chat lane (model from ``POCKETSYNC_CHAT_MODEL``)."""
+
+        def make() -> Any:
+            from pocketsync.enrich.gateway import GatewayClient
+
+            return GatewayClient(
+                self.settings.gateway_url,
+                self.settings.gateway_api_key,
+                self.taxonomy(),
+                chat_model=self.settings.chat_model,
+            )
+
+        return self._once("chat", make)
+
+    def search_fn(self) -> Any:
+        """The ``$vectorSearch`` seam for :func:`pocketsync.recall.search.search`.
+
+        None means the default (``collection.aggregate``); tests return a fake, because
+        mongomock cannot run ``$vectorSearch``.
+        """
+        return None
 
     def gateway_probe(self) -> dict[str, Any]:
         """``GET /capabilities`` on the gateway; return the parsed JSON (raises on failure)."""

@@ -19,12 +19,18 @@ pick it up from the landing zone and route it onward (Notion, the Culture
 mesh, email, eidetic memory, …). The landing-zone layout and the event stream
 below are the stable contract they build against.
 
+You can also talk to the stored recordings: search them, read them, list the
+action items and chat with them, from the CLI, from an MCP server or from a
+private web page (see [Talk to your recordings](#talk-to-your-recordings)).
+
 Non-goals: re-running speech-to-text (Pocket's transcript is the source of
-truth), routing data downstream, and any UI.
+truth), routing data downstream, and any UI beyond a thin client over the
+CLI/MCP surface (the verbs are the product; the web page and the MCP server
+only call them).
 
 ## Status
 
-**Built (0.11.0); live deploy pending.** Anything marked *(planned)* below is
+**Built (0.12.0); live deploy pending.** Anything marked *(planned)* below is
 not on disk yet. The build brief is
 [issue #1](https://github.com/agentculture/pocketsync/issues/1). The operator
 deploy and acceptance run are
@@ -49,7 +55,12 @@ deploy and acceptance run are
 | Reconciler and backfill (`pocketsync/reconcile.py`) | Built |
 | `serve` composition (`pocketsync/serve.py`) | Built |
 | CLI verbs `auth`, `list`, `sync`, `watch`, `serve`, `status`, `reembed` | Built |
+| Verb registry and the talk-to-recordings verbs `enrich`, `search`, `get`, `transcript`, `recordings`, `actions` (`pocketsync/verbs.py`, `pocketsync/recall/`) | Built |
+| Enrichment modes, generation-guarded writes, persisted deferrals and the `reclassified` event | Built |
+| MCP server, `pocketsync mcp` (`pocketsync/mcp/`, extra `pocketsync[mcp]`) | Built |
+| Web server and page, `pocketsync web` (`pocketsync/web/`, API in [`docs/web-api.md`](docs/web-api.md)) | Built |
 | systemd and cloudflared deploy files | Built (see the [culture.dev runbook](docs/operations/pocketsync-culture-dev.md)) |
+| `pocketsync-web.service` and the pocketchat runbook | Built (see the [pocketchat runbook](docs/operations/pocketchat-culture-dev.md)) |
 | Live deploy and acceptance run | *(planned)*: [issue #3](https://github.com/agentculture/pocketsync/issues/3) |
 | S3 sink | *(planned)* |
 | Example culture-rules rule consuming the events | *(planned)* |
@@ -82,7 +93,8 @@ Write verbs are dry-run by default and commit only with `--apply`. Every verb
 takes `--json`.
 
 Secrets come from the environment, and only from the environment. If a runtime
-verb (`auth`, `list`, `sync`, `watch`, `serve`, `status`, `reembed`, `doctor`)
+verb (`auth`, `list`, `sync`, `watch`, `serve`, `status`, `reembed`, `doctor`,
+`enrich`, `search`, `get`, `transcript`, `recordings`, `actions`, `mcp`, `web`)
 finds one unset, and the operator's `grant` store has a secret of exactly that
 name, for example `POCKETSYNC_MONGO_URI`, `pocketsync` re-runs itself under
 `grant run --inject`. So a bare `pocketsync status` works on the serving host
@@ -98,6 +110,14 @@ off.
 | `pocketsync serve [--port P]` | Webhook receiver, landing, reconciler and enrichment in one process. |
 | `pocketsync status` | Watermark, last run, webhook health, enrichment backlog and last errors. |
 | `pocketsync reembed [--apply]` | Queue recordings embedded with another model for re-embedding. |
+| `pocketsync enrich [selectors] [--only MODE] [--apply]` | Re-queue selected recordings for enrichment (dry run unless `--apply`). |
+| `pocketsync search QUERY [--label L] [--since D] [--until D] [--has-action-items] [--exclude-sensitive] [--limit N]` | Semantic search over recordings. |
+| `pocketsync get ID` | One recording: metadata, summary, action items, labels. |
+| `pocketsync transcript ID [--start S] [--end S]` | The speaker-attributed transcript, optionally a time window. |
+| `pocketsync recordings [--since D] [--until D] [--label L] [--limit N] [--exclude-sensitive]` | Stored recordings, newest first. |
+| `pocketsync actions [--no-open-only] [--limit N] [--exclude-sensitive]` | Action items across recordings (open ones by default). |
+| `pocketsync mcp` | The verbs above as MCP tools over stdio (needs `pocketsync[mcp]`). |
+| `pocketsync web [--port P] [--no-access-check]` | The private pocketchat site on loopback. |
 
 Sync is incremental and idempotent. A re-run with no remote changes does
 nothing. A content hash detects when Pocket re-processes a transcript or
@@ -124,6 +144,83 @@ webhooks that were acknowledged but not handled are replayed from the durable
 inbox. Audio is downloaded once per
 recording; if it is missing (`--no-audio`, or a failed download), a later
 pass with audio fetches it.
+
+## Talk to your recordings
+
+Six verbs read and manage the stored recordings. They come from one registry
+(`pocketsync/verbs.py`), and the CLI, the MCP server and the web API all call
+that same registry, so no surface has a verb, a parameter or a write path of
+its own. Every verb takes `--json`.
+
+| Verb | What it does |
+|------|--------------|
+| `search` | Semantic search over transcript chunks and summaries, with keyword fallback when the embedding lane is down. Filters: `--label` (repeatable), `--since`, `--until`, `--has-action-items` / `--no-has-action-items`, `--exclude-sensitive`, `--limit`. |
+| `get` | One recording by id: metadata, summary, action items and labels, never vectors. |
+| `transcript` | The speaker-attributed segments, optionally only `--start`..`--end` seconds. |
+| `recordings` | Stored recordings, newest first, not deleted and not merged. |
+| `actions` | Action items across recordings, newest recording first. Only open items by default; `--no-open-only` includes done ones. |
+| `enrich` | Select recordings and re-queue them for enrichment. |
+
+`enrich` is the one write verb. It is a dry run unless `--apply` is given.
+Selectors are `--all`, `--since`, `--until`, `--id` (repeatable), `--label` and
+`--status` (an enrichment status). `--only` picks the mode: `all` (full),
+`classify` (labels only) or `embed` (vectors only). The older `reembed` verb is
+unchanged.
+
+The worker behind it runs the three modes, guards every write with a
+generation counter (compare-and-set, so a result computed for a superseded
+requeue is dropped), and persists gateway deferrals: a recording waiting on a
+down lane keeps its `next_attempt_at`, and `pocketsync status` reports
+`enrichment_deferred` (how many, the earliest retry, the reasons).
+
+### MCP server
+
+`pocketsync mcp` serves the same verbs as MCP tools over stdio (tool names are
+the verb names). It needs the extra: `pip install 'pocketsync[mcp]'`. For
+Claude Code, add to `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "pocketsync": {
+      "command": "pocketsync",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Secrets come from the environment or from grant: the `mcp` verb is a runtime
+verb, so it re-runs itself under `grant run --inject` automatically when
+`POCKETSYNC_MONGO_URI` and `POCKETSYNC_GATEWAY_API_KEY` live in the grant store.
+`enrich` stays a dry run unless the caller passes `apply: true`.
+
+### The pocketchat web page
+
+`pocketsync web [--port P] [--no-access-check]` serves a private page and a
+JSON API on loopback (default port `8788`): a recordings reader, search and a
+chat that answers from retrieved transcript chunks and cites them by recording
+and time. The HTTP contract is in [`docs/web-api.md`](docs/web-api.md).
+`--no-access-check` skips the Access JWT check and is for loopback
+development only. Deploy it with
+[`deploy/systemd/pocketsync-web.service`](deploy/systemd/pocketsync-web.service)
+and the [pocketchat runbook](docs/operations/pocketchat-culture-dev.md).
+
+### Privacy model
+
+- All recordings are searchable and readable by default. That is the
+  operator's decision for an internal network. `exclude_sensitive` is opt-in
+  on `search`, `recordings` and `actions`: it drops recordings whose
+  `sensitive` filter was scored high (an absent score counts as not
+  sensitive).
+- The chat model and the embeddings run on the operator's lobes gateway at
+  `localhost`, not on a third-party API.
+- The site sits behind Cloudflare Access (operator email only, no Bypass), and
+  the server also verifies the Access JWT on every request, so a request that
+  skips the edge is refused.
+- The MCP tools put the operator's own recordings into the context of the
+  model that calls them. Only connect clients you would show those recordings
+  to.
 
 ## Data contract
 
@@ -247,10 +344,12 @@ only when `sensitive` is present and low.
 
 | Index | Vector path | Filter fields |
 |-------|-------------|---------------|
-| `recordings_summary_vec` | `enrichment.summary_vector` | `enrichment.labels`, `deleted_in_pocket`, `recording_at` |
+| `recordings_summary_vec` | `enrichment.summary_vector` | `enrichment.labels`, `deleted_in_pocket`, `recording_at`, `enrichment.filters.sensitive`, `enrichment.filters.has_action_items` |
 | `recordings_chunk_vec` | `enrichment.chunks.vector` (`nestedRoot` `enrichment.chunks`) | same |
 
-A model/dimension guard refuses to mix vector spaces. Both indexes were
+An existing index whose filter fields differ is updated in place when
+`pocketsync serve` starts (so a new filter field after an upgrade needs a
+restart of `serve`, not a rebuild). A model/dimension guard refuses to mix vector spaces. Both indexes were
 verified against a real atlas-local 8.0.34 (`tests/integration/`). On the
 `nestedRoot` chunk index, recording-level filters such as `enrichment.labels`
 must go in `$vectorSearch`'s **`parentFilter`**, not `filter`; under `filter`
@@ -328,7 +427,7 @@ line:
 | Field | Meaning |
 |-------|---------|
 | `event_id` | UUID; equals the envelope `id` on the broker. Dedupe on it. |
-| `type` | Always `pocketsync.recording.enriched`. |
+| `type` | `pocketsync.recording.enriched` (or `pocketsync.recording.reclassified`, below). |
 | `recording_id`, `content_hash` | Which recording and which version of its content. |
 | `change` | `created` the first time a recording id is emitted, `updated` after. |
 | `sinks.mongo` | Collection and document id to read the full record from. |
@@ -349,6 +448,43 @@ Guarantees:
   data and `event_id` as the envelope `id`. Progress is the byte offset in the
   `events.jsonl.published` sidecar. Delivery is **at-least-once**, so
   consumers must dedupe on the envelope `id`.
+
+### Reclassified events
+
+When re-enrichment changes a recording's labels but its `content_hash` stays
+the same (a taxonomy change, or an operator `enrich --only classify`
+requeue), pocketsync appends one `pocketsync.recording.reclassified` line. It
+has the same envelope as `enriched`, without `change`, and `enrichment` adds
+the previous labels, the requeue generation and a digest of the new labels:
+
+```json
+{
+  "event_id": "00000000-0000-4000-8000-000000000002",
+  "type": "pocketsync.recording.reclassified",
+  "recording_id": "rec_0001",
+  "content_hash": "<64 hex chars>",
+  "sinks": {
+    "mongo": {"collection": "recordings", "doc_id": "rec_0001"},
+    "files": {"meta": "2026/01/rec_0001/meta.json"}
+  },
+  "enrichment": {
+    "labels": ["idea"],
+    "previous_labels": ["meeting"],
+    "taxonomy_version": "2",
+    "model": "example-embed-model",
+    "generation": 1,
+    "labels_digest": "<16 hex chars>"
+  },
+  "emitted_at": "2026-01-16T08:00:00Z"
+}
+```
+
+It is deduped on `(recording_id, content_hash, generation, taxonomy_version,
+labels_digest)`, so a retried write never publishes twice, while a later
+requeue that lands on a different label set does. `labels_digest` does not
+depend on label order. It follows the same outbox and at-least-once rules as
+`enriched`, on the topic derived from its type, `events/pocketsync/recording/reclassified`. The `enriched`
+event and its dedupe are unchanged.
 
 The example culture-rules rule that consumes these events is *(planned)*.
 
@@ -379,6 +515,11 @@ Non-secret settings:
 | `POCKETSYNC_ENRICHMENT_CONCURRENCY` | `2` | Parallel enrichment jobs. |
 | `POCKETSYNC_TAXONOMY_PATH` | built-in | Taxonomy TOML; default is `pocketsync/enrich/default_taxonomy.toml` (labels: meeting, call, idea, todo-reminder, personal-note, lecture-learning, other). |
 | `POCKETSYNC_BACKFILL_SINCE` | `2024-01-01` | Earliest day the automatic catch-up backfills from; `off` disables it (see [Catch-up](#catch-up)). |
+| `POCKETSYNC_CHAT_MODEL` | `unsloth/Qwen3.8-27B-NVFP4` | Gateway lane the web chat answers with. Configurable; the operator plans to move to another model later. |
+| `POCKETSYNC_WEB_PORT` | `8788` | Loopback port of `pocketsync web`. |
+| `POCKETSYNC_ACCESS_TEAM_DOMAIN` | unset | Cloudflare Access team domain (`<team>.cloudflareaccess.com`). Set together with the AUD, or not at all. |
+| `POCKETSYNC_ACCESS_AUD` | unset | AUD tag of the pocketchat Access application. |
+| `POCKETSYNC_SITE_ORIGIN` | `https://pocketchat.culture.dev` | The only `Origin` the web API accepts on a `POST`. |
 | `POCKETSYNC_CONFIG` | unset | Path to the optional TOML config. |
 | `POCKETSYNC_DATA_DIR` | `$HOME/.local/share/pocketsync/mongo` | Host data root for the Mongo stack (compose only). |
 

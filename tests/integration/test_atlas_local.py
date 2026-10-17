@@ -23,6 +23,7 @@ import pytest
 
 from pocketsync import vindex
 from pocketsync.model import Recording
+from pocketsync.recall.search import search as recall_search
 from pocketsync.sinks.mongo import MongoSink, connect
 
 pytestmark = pytest.mark.skipif(
@@ -70,6 +71,34 @@ def sink():
             },
         )
         assert ok
+    # Recall-search rows (label "gamma"): (id, sensitive score, recording_at, axis, fate)
+    recall_rows = [
+        ("it-4", 0.9, "2026-10-10T10:00:00Z", 40, None),
+        ("it-5", None, "2026-10-10T11:00:00Z", 40, "deleted"),
+        ("it-6", None, "2026-10-10T12:00:00Z", 40, "merged"),
+        ("it-7", None, "2026-10-12T10:00:00Z", 41, None),
+    ]
+    for rid, sens, at, axis, fate in recall_rows:
+        rec = Recording(id=rid, title=f"Synthetic {rid}", summary=f"summary {rid}", recording_at=at)
+        s.put_recording(rec)
+        chunk = {"index": 0, "start": 1.0, "end": 2.0, "text": f"chunk {rid}", "vector": _vec(axis)}
+        assert s.set_enrichment(
+            rid,
+            rec.content_hash(),
+            {
+                "status": "done",
+                "model": MODEL,
+                "dims": DIMS,
+                "labels": ["gamma"],
+                "filters": {} if sens is None else {"sensitive": sens},
+                "summary_vector": _vec(axis),
+                "chunks": [chunk],
+            },
+        )
+        if fate == "deleted":
+            s.tombstone(rid, "2026-10-11T00:00:00Z")
+        elif fate == "merged":
+            s.mark_merged(rid, "it-4", "2026-10-11T00:00:00Z")
     vindex.ensure_index(s.collection, MODEL, DIMS)
     try:
         yield s
@@ -187,3 +216,68 @@ def test_chunk_vector_search_with_parent_label_filter(sink: MongoSink) -> None:
     )
     assert hits
     assert hits[0]["_id"] == "it-3"
+
+
+class _QueryGateway:
+    """Embeds every query as one fixed synthetic vector and records the prompt names."""
+
+    def __init__(self, vec: list[float]) -> None:
+        self.vec = vec
+        self.prompts: set[str] = set()
+
+    def embed(self, texts, prompt_name="Document"):
+        self.prompts.add(prompt_name)
+        return [list(self.vec) for _ in texts]
+
+
+def _ids_eventually(fn, expected: set[str], timeout: float = 30.0) -> set[str]:
+    deadline = time.monotonic() + timeout
+    ids = {r["id"] for r in fn()["results"]}
+    while ids != expected and time.monotonic() < deadline:
+        time.sleep(1)
+        ids = {r["id"] for r in fn()["results"]}
+    return ids
+
+
+def test_recall_search_filters_on_real_vector_search(sink: MongoSink) -> None:
+    """pocketsync.recall.search against real $vectorSearch: parentFilter + post-$match.
+
+    Deleted (it-5) and merged (it-6) docs never appear; sensitive (it-4) is returned by
+    default and dropped only with exclude_sensitive; the recording_at range applies.
+    """
+    col = sink.collection
+    _wait_queryable(col, vindex.CHUNK_INDEX)
+    _wait_queryable(col, vindex.SUMMARY_INDEX)
+    gw = _QueryGateway(_vec(40))
+
+    def run(**kw):
+        return recall_search(sink, gw, "synthetic", labels=["gamma"], limit=5, **kw)
+
+    assert _ids_eventually(run, {"it-4", "it-7"}) == {"it-4", "it-7"}
+    out = run()
+    assert out["mode"] == "vector"
+    assert out["results"][0]["id"] == "it-4"
+    assert out["results"][0]["chunks"][0]["start"] == 1.0
+    assert gw.prompts == {"query"}
+    assert {r["id"] for r in run(exclude_sensitive=True)["results"]} == {"it-7"}
+    assert {r["id"] for r in run(since="2026-10-11")["results"]} == {"it-7"}
+    assert {r["id"] for r in run(until="2026-10-10")["results"]} == {"it-4"}
+
+
+def test_stale_vector_index_gains_new_filter_fields(sink):
+    # atlas-local rejects updateSearchIndex for vectorSearch; ensure_index re-creates instead.
+    from pymongo.operations import SearchIndexModel
+
+    col = sink.collection.database["stale_index_probe"]
+    col.insert_one({"_id": "p1"})
+    stale = vindex.summary_definition(DIMS)
+    stale["fields"] = [f for f in stale["fields"] if f["path"] != vindex.PATH_SENSITIVE]
+    col.create_search_index(
+        SearchIndexModel(definition=stale, name=vindex.SUMMARY_INDEX, type="vectorSearch")
+    )
+    _wait_queryable(col, vindex.SUMMARY_INDEX)
+    vindex.ensure_index(col, MODEL, DIMS)
+    _wait_queryable(col, vindex.SUMMARY_INDEX)
+    (idx,) = list(col.list_search_indexes(vindex.SUMMARY_INDEX))
+    paths = {f["path"] for f in idx["latestDefinition"]["fields"]}
+    assert vindex.PATH_SENSITIVE in paths
