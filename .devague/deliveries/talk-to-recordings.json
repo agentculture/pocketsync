@@ -2,7 +2,7 @@
   "plan_slug": "talk-to-recordings",
   "schema_version": 2,
   "created": "2026-10-16T12:46:49Z",
-  "updated": "2026-10-17T04:25:52Z",
+  "updated": "2026-10-17T04:31:50Z",
   "deviations": [
     {
       "id": "d1",
@@ -1705,6 +1705,272 @@
       "status": "approved",
       "superseded": false,
       "seq": 90
+    },
+    {
+      "id": "e89",
+      "obligation_ref": "o29",
+      "test_ref": "tests/test_recall_search.py::test_vector_search_failure_falls_back_to_keyword_mode",
+      "behavior_text": "a failing $vectorSearch stage degrades to keyword mode with reason 'vector search failed: <type>' instead of raising",
+      "contract_text": "a failing $vectorSearch stage degrades to keyword mode with reason 'vector search failed: <type>' instead of raising",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 91
+    },
+    {
+      "id": "e90",
+      "obligation_ref": "o11",
+      "test_ref": "tests/test_vindex.py::test_transient_update_failure_keeps_the_index",
+      "behavior_text": "a non-refusal update_search_index error is re-raised and the index is neither dropped nor created",
+      "contract_text": "a non-refusal update_search_index error is re-raised and the index is neither dropped nor created",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 92
+    },
+    {
+      "id": "e91",
+      "obligation_ref": "o11",
+      "test_ref": "tests/test_vindex.py::test_recreate_never_creates_over_an_index_still_dropping",
+      "behavior_text": "a drop still listed after RECREATE_WAIT_SECONDS raises IndexStillDropping and creates nothing",
+      "contract_text": "a drop still listed after RECREATE_WAIT_SECONDS raises IndexStillDropping and creates nothing",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 93
+    },
+    {
+      "id": "e92",
+      "obligation_ref": "o10",
+      "test_ref": "tests/test_recall_read.py::test_since_until_accept_every_iso_form_fromisoformat_accepts",
+      "behavior_text": "basic dates, space separators, UTC offsets and fractional seconds in since/until select the same instants as the stored UTC recording_at",
+      "contract_text": "basic dates, space separators, UTC offsets and fractional seconds in since/until select the same instants as the stored UTC recording_at",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 94
+    },
+    {
+      "id": "e93",
+      "obligation_ref": "o4",
+      "test_ref": "tests/test_recall_enrich.py::test_dates_mean_the_same_as_in_the_read_verbs",
+      "behavior_text": "enrich --since/--until select exactly the recordings list_recordings selects for the same values",
+      "contract_text": "enrich --since/--until select exactly the recordings list_recordings selects for the same values",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 95
+    },
+    {
+      "id": "e94",
+      "obligation_ref": "o4",
+      "test_ref": "tests/test_recall_enrich.py::test_merged_recordings_are_not_selected",
+      "behavior_text": "enrich never selects a recording with merged_into set",
+      "contract_text": "enrich never selects a recording with merged_into set",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 96
+    },
+    {
+      "id": "e95",
+      "obligation_ref": "o5",
+      "test_ref": "tests/test_enrich_worker.py::test_taxonomy_change_reclassifies_without_embedding",
+      "behavior_text": "a taxonomy change requeues in classify mode with generation+1 and the next run makes 0 embed calls",
+      "contract_text": "a taxonomy change requeues in classify mode with generation+1 and the next run makes 0 embed calls",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 97
+    },
+    {
+      "id": "e96",
+      "obligation_ref": "o6",
+      "test_ref": "tests/test_enrich_worker.py::test_retry_schedule_forgets_docs_that_leave_the_deferral",
+      "behavior_text": "a deferred doc that later errors leaves the in-memory retry schedule",
+      "contract_text": "a deferred doc that later errors leaves the in-memory retry schedule",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 98
+    },
+    {
+      "id": "e97",
+      "obligation_ref": "o6",
+      "test_ref": "tests/test_enrich_worker.py::test_held_pending_prunes_docs_no_longer_pending",
+      "behavior_text": "a deferred doc that is deleted is pruned from the retry schedule on the next cycle",
+      "contract_text": "a deferred doc that is deleted is pruned from the retry schedule on the next cycle",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 99
+    },
+    {
+      "id": "e98",
+      "obligation_ref": "o8",
+      "test_ref": "tests/test_gateway_chat.py::test_default_chat_model_has_one_source",
+      "behavior_text": "gateway.CHAT_MODEL is config.DEFAULT_CHAT_MODEL (one source)",
+      "contract_text": "gateway.CHAT_MODEL is config.DEFAULT_CHAT_MODEL (one source)",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 100
+    },
+    {
+      "id": "e99",
+      "obligation_ref": "o16",
+      "test_ref": "tests/test_web_chat.py::test_numbers_beyond_any_source_are_text_not_markers",
+      "behavior_text": "a bracketed number above 99 such as [2025] stays as text; out-of-range small markers are still dropped",
+      "contract_text": "a bracketed number above 99 such as [2025] stays as text; out-of-range small markers are still dropped",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 101
+    },
+    {
+      "id": "e100",
+      "obligation_ref": "o16",
+      "test_ref": "tests/test_web_chat.py::test_history_answers_lose_their_old_markers",
+      "behavior_text": "assistant history turns are sent without their [k] markers; user turns are unchanged",
+      "contract_text": "assistant history turns are sent without their [k] markers; user turns are unchanged",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 102
+    },
+    {
+      "id": "e101",
+      "obligation_ref": "o15",
+      "test_ref": "tests/test_cli_runtime_lock.py::test_a_slow_build_does_not_block_other_accessors",
+      "behavior_text": "a slow accessor build does not block cached or other accessors",
+      "contract_text": "a slow accessor build does not block cached or other accessors",
+      "evidence_type": "automated",
+      "strength": "sensitivity",
+      "strength_basis": "seen failing before the fix (red step), green at 40a5067 with the full suite (933 passed)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:38",
+        "commit": "40a5067"
+      },
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false,
+      "seq": 103
+    },
+    {
+      "id": "e102",
+      "obligation_ref": "o22",
+      "test_ref": "live: operator probe questions on pocketchat",
+      "behavior_text": "operator asked probe questions on the demo and on pocketchat.culture.dev and reports they worked",
+      "contract_text": "3/3 probe questions rank the expected recording first",
+      "evidence_type": "manual",
+      "strength": "execution",
+      "strength_basis": "operator report in session 2026-10-17: 'I tested on demo and worked on the real thing' (live build ca5fb75)",
+      "outcome": "pass",
+      "run": {
+        "timestamp": "2026-10-17T04:31:49",
+        "commit": "ca5fb75"
+      },
+      "origin": "user",
+      "status": "approved",
+      "superseded": false,
+      "seq": 104
     }
   ],
   "deltas": [
@@ -1814,6 +2080,122 @@
       "evidence_refs": [],
       "origin": "llm",
       "status": "approved",
+      "superseded": false
+    },
+    {
+      "id": "b9",
+      "kind": "amended",
+      "behavior_text": "search also degrades to keyword mode when the $vectorSearch stage fails (index rebuilding or missing a filter field), reason 'vector search failed: <type>'",
+      "caused_by": [
+        "c38"
+      ],
+      "evidence_refs": [
+        "e89"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false
+    },
+    {
+      "id": "b10",
+      "kind": "amended",
+      "behavior_text": "vindex drops and re-creates an index only on atlas-local's in-place-update refusal; other update errors leave it untouched; a drop still listed after 10 min raises IndexStillDropping (serve warns) instead of creating blind",
+      "caused_by": [
+        "b6"
+      ],
+      "evidence_refs": [
+        "e90",
+        "e91"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false
+    },
+    {
+      "id": "b11",
+      "kind": "amended",
+      "behavior_text": "since/until accept any ISO form (basic date, space separator, UTC offset, fraction) and are normalised to UTC before comparing with recording_at; enrich uses the same parser",
+      "caused_by": [
+        "c10"
+      ],
+      "evidence_refs": [
+        "e92",
+        "e93"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false
+    },
+    {
+      "id": "b12",
+      "kind": "amended",
+      "behavior_text": "enrich never selects recordings merged into another",
+      "caused_by": [
+        "c4"
+      ],
+      "evidence_refs": [
+        "e94"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false
+    },
+    {
+      "id": "b13",
+      "kind": "amended",
+      "behavior_text": "a taxonomy change requeues stale docs in classify mode with a generation bump (no re-embedding)",
+      "caused_by": [
+        "c5"
+      ],
+      "evidence_refs": [
+        "e95"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false
+    },
+    {
+      "id": "b14",
+      "kind": "amended",
+      "behavior_text": "the worker's in-memory retry schedule drops docs once they finish, error, go stale or stop being pending",
+      "caused_by": [
+        "c6"
+      ],
+      "evidence_refs": [
+        "e96",
+        "e97"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false
+    },
+    {
+      "id": "b15",
+      "kind": "amended",
+      "behavior_text": "chat keeps bracketed numbers above 99 (e.g. [2025]) as text and strips [k] markers from assistant history turns",
+      "caused_by": [
+        "c17"
+      ],
+      "evidence_refs": [
+        "e99",
+        "e100"
+      ],
+      "origin": "llm",
+      "status": "proposed",
+      "superseded": false
+    },
+    {
+      "id": "b16",
+      "kind": "amended",
+      "behavior_text": "runtime accessors lock per key and read cached values lock-free, so a slow build blocks only its own accessor",
+      "caused_by": [
+        "b4"
+      ],
+      "evidence_refs": [
+        "e101"
+      ],
+      "origin": "llm",
+      "status": "proposed",
       "superseded": false
     }
   ],
