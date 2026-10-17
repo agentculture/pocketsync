@@ -289,3 +289,25 @@ def test_http_chat_zero_hits(tmp_path):
     assert body["citations"] == []
     assert body["answer"] == ""
     assert rt.fake_chat.calls == []
+
+
+def test_numbers_beyond_any_source_are_text_not_markers():
+    sources = [{"id": "r1", "title": "t", "recording_at": None, "start": 0, "end": 1, "text": "x"}]
+    text, citations = chat.cite("The [2025] budget [1] was cut [3].", sources)
+    assert text == "The [2025] budget [1] was cut."
+    assert [c["n"] for c in citations] == [1]
+
+
+def test_history_answers_lose_their_old_markers():
+    req = chat.parse_request(
+        {
+            "question": "and then?",
+            "history": [
+                {"role": "user", "content": "what about [2]?"},
+                {"role": "assistant", "content": "It happened [2][3] in [2025]."},
+            ],
+        }
+    )
+    messages = chat.build_messages(req, [])
+    assert messages[1]["content"] == "what about [2]?"
+    assert messages[2]["content"] == "It happened in [2025]."

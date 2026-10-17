@@ -24,7 +24,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Runtime lazy accessors are thread-safe
+- Runtime lazy accessors are thread-safe, with one lock per accessor so a slow Mongo connect blocks only its own callers
+- search falls back to keyword mode when the vector search stage fails (index rebuilding or missing a filter field), not only when query embedding fails
+- Vector index re-create: only atlas-local's in-place-update refusal triggers a drop; a transient error leaves the index alone, and a drop that is still in progress after 10 minutes is reported instead of re-created blind
+- since/until accept every ISO form (basic dates, space separator, UTC offsets) and mean the same instant in search, recordings, actions, chat and enrich (enrich now shares the read verbs' parser)
+- enrich never selects merged recordings
+- A taxonomy change re-queues in classify mode with a generation bump (no re-embedding)
+- The enrichment worker's in-memory retry schedule no longer grows without bound
+- One source for the default chat model (config)
+- pocketchat keeps bracketed numbers like [2025] as text and strips old citation markers from chat history
 
 ## [0.11.1] - 2026-10-16
 

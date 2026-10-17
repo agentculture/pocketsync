@@ -48,12 +48,21 @@ class Runtime:
     def __init__(self, settings: config.Settings | None = None) -> None:
         self.settings = settings if settings is not None else config.load()
         self._cache: dict[str, Any] = {}
-        # Re-entrant: one accessor builds another (store_sink -> database), and the threaded
-        # web server can hit the same accessor from two requests at once.
-        self._lock = threading.RLock()
+        # One lock per key, so a slow build (Mongo server selection) blocks only callers of
+        # that accessor; cached values are read without any lock. Re-entrant: an accessor
+        # may build another (store_sink -> database) and the threaded web server can hit
+        # the same accessor from two requests at once.
+        self._locks: dict[str, threading.RLock] = {}
+        self._locks_guard = threading.Lock()
 
     def _once(self, key: str, make: Callable[[], Any]) -> Any:
-        with self._lock:
+        try:
+            return self._cache[key]
+        except KeyError:
+            pass
+        with self._locks_guard:
+            lock = self._locks.setdefault(key, threading.RLock())
+        with lock:
             if key not in self._cache:
                 self._cache[key] = make()
             return self._cache[key]

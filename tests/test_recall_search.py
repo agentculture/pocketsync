@@ -292,3 +292,18 @@ def test_keyword_mode_escapes_regex_metacharacters(col) -> None:
     assert [r["id"] for r in out["results"]] == ["k1"]
     out = search(col, gw, ".*", search_fn=FakeSearch())
     assert out["results"] == []
+
+
+def test_vector_search_failure_falls_back_to_keyword_mode(col) -> None:
+    """An index that is mid-rebuild or lacks a filter field must not turn into a 500."""
+    _seed_keyword(col)
+
+    def broken(collection, pipeline):
+        raise RuntimeError("synthetic: path is not indexed as a filter")
+
+    gw = FakeGateway()
+    out = search(col, gw, "budget", has_action_items=None, search_fn=broken)
+    assert out["mode"] == "keyword"
+    assert out["reason"] == "vector search failed: RuntimeError"
+    assert [r["id"] for r in out["results"]] == ["k1", "k2"]
+    assert gw.calls  # the query was embedded first; only the search stage failed

@@ -169,3 +169,18 @@ def test_list_action_items(col) -> None:
     sens = list_action_items(col, open_only=True, exclude_sensitive=True)
     assert [a["recording_id"] for a in sens["action_items"]] == ["c", "a"]
     _no_vectors(out)
+
+
+@pytest.mark.parametrize(
+    ("kw", "expected"),
+    [
+        ({"since": "20261005"}, ["c", "b"]),  # ISO basic date
+        ({"since": "2026-10-05 10:00"}, ["c"]),  # space separator, b is at 09:00
+        ({"since": "2026-10-05T11:00+02:00"}, ["c", "b"]),  # 09:00Z
+        ({"until": "2026-10-05T11:00:00+02:00"}, ["b", "a"]),  # inclusive at 09:00Z
+        ({"until": "2026-10-05T10:59:59+02:00"}, ["a"]),
+        ({"since": "2026-10-05T09:00:00.5"}, ["c"]),  # naive is UTC; fraction is honoured
+    ],
+)
+def test_since_until_accept_every_iso_form_fromisoformat_accepts(col, kw, expected) -> None:
+    assert [r["id"] for r in list_recordings(col, **kw)["recordings"]] == expected

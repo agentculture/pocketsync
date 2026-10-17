@@ -12,12 +12,13 @@ Shared recording-level filtering lives here too (:func:`recording_filter` for Mo
 * ``exclude_sensitive`` is opt-in (user decision c31): it drops docs whose
   ``enrichment.filters.sensitive`` is at or above the threshold; an absent score is
   treated as not sensitive;
-* ``since``/``until`` take an ISO date or datetime; a bare-date ``until`` includes that day.
+* ``since``/``until`` take an ISO date or datetime (any form ``fromisoformat`` accepts,
+  normalised to UTC by :func:`bounds`); a bare-date ``until`` includes that day.
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from pocketsync import vindex
@@ -27,6 +28,7 @@ from pocketsync.sinks.mongo import MongoSink
 DEFAULT_THRESHOLD = 0.5
 DEFAULT_LIST_LIMIT = 50
 MAX_LIMIT = 1000
+_SECONDS = "%Y-%m-%dT%H:%M:%S"
 
 
 def collection_of(store: Any) -> Any:
@@ -42,31 +44,49 @@ def check_limit(limit: int | None, *, allow_none: bool = False) -> int | None:
     return limit
 
 
-def _bounds(since: str | None, until: str | None) -> dict[str, str]:
-    """Mongo comparison operators on the ISO-string ``recording_at`` (lexicographic)."""
+def _range(text: str) -> tuple[str, str]:
+    """``(since bound, until bound)`` for one ISO date or datetime; ValueError when invalid."""
+    try:
+        day = date.fromisoformat(text)
+    except ValueError:
+        pass
+    else:
+        return day.isoformat(), (day + timedelta(days=1)).isoformat()
+    moment = datetime.fromisoformat(text)
+    if moment.tzinfo is not None:
+        moment = moment.astimezone(timezone.utc).replace(tzinfo=None)
+    whole = moment.replace(microsecond=0)
+    after = whole + timedelta(seconds=1)
+    return (whole if whole == moment else after).strftime(_SECONDS), after.strftime(_SECONDS)
+
+
+def bounds(since: str | None, until: str | None, *, flag: str = "") -> dict[str, str]:
+    """Mongo comparison operators on the ISO-string ``recording_at`` (lexicographic).
+
+    Stored ``recording_at`` is UTC ``YYYY-MM-DDTHH:MM:SSZ``, so each bound is normalised to
+    a UTC prefix of that shape before it is compared as text: any form
+    :meth:`date.fromisoformat` / :meth:`datetime.fromisoformat` accepts (basic ``20260501``,
+    a space separator, an offset) means the same instant. A date ``until`` includes that
+    whole day; a datetime ``until`` includes its whole second; a ``since`` with a fraction
+    starts at the next whole second (stored times have no fraction). ``flag`` prefixes the
+    name in the error (``"--"`` for the CLI-shaped ``enrich`` message).
+    """
     out: dict[str, str] = {}
     for name, value in (("since", since), ("until", until)):
         if value is None:
             continue
-        text = str(value).strip()
         try:
-            if len(text) == 10:
-                day = date.fromisoformat(text)
-            else:
-                datetime.fromisoformat(text)
-                day = None
+            lo, hi = _range(str(value).strip())
         except ValueError as exc:
             raise CliError(
                 EXIT_USER_ERROR,
-                f"invalid {name}: {value!r}",
+                f"invalid {flag}{name}: {value!r}",
                 "use an ISO date (YYYY-MM-DD) or datetime (YYYY-MM-DDTHH:MM:SSZ)",
             ) from exc
         if name == "since":
-            out["$gte"] = text
-        elif day is not None:
-            out["$lt"] = (day + timedelta(days=1)).isoformat()
+            out["$gte"] = lo
         else:
-            out["$lte"] = text
+            out["$lt"] = hi
     return out
 
 
@@ -83,7 +103,7 @@ def recording_filter(
     flt: dict[str, Any] = {vindex.PATH_DELETED: {"$ne": True}, "merged_into": None}
     if labels:
         flt[vindex.PATH_LABELS] = {"$in": list(labels)}
-    rng = _bounds(since, until)
+    rng = bounds(since, until)
     if rng:
         flt[vindex.PATH_RECORDING_AT] = rng
     if has_action_items is True:

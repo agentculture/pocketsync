@@ -323,12 +323,15 @@ Selects recordings and re-queues them for enrichment. **Dry run unless
 gateway calls, and writes nothing. With `--apply` it flips exactly those
 documents to `enrichment.status = pending` (attempts 0, error and deferral
 cleared, generation bumped) and the enrichment worker (`serve`, or
-`sync --apply`) does the work. Recordings deleted in Pocket are never selected.
+`sync --apply`) does the work. Recordings deleted in Pocket, or merged into
+another recording, are never selected.
 
 ## Selectors (at least one; they combine with AND)
 
 - `--all` — every live recording;
-- `--since DATE` / `--until DATE` — on `recording_at` (a date is inclusive);
+- `--since DATE` / `--until DATE` — on `recording_at`, read exactly as the
+  read verbs read them (any ISO date or datetime, offsets honoured; a date is
+  inclusive);
 - `--id ID` — repeatable;
 - `--label LABEL` — recordings carrying that label;
 - `--status pending|done|error` — e.g. `--status error` to retry failures.
@@ -351,12 +354,13 @@ _SEARCH = """\
 # pocketsync search
 
 Semantic search over the stored recordings. Read-only. The query is embedded
-with gemma2-embed (`prompt_name` Query) and matched against the chunk and
+with gemma2-embed (`prompt_name` query) and matched against the chunk and
 summary vector indexes; each result lists the recording id, title,
 `recording_at`, labels, score and its best-matching chunks with `start`/`end`
 offsets in seconds. Vectors are never returned. Deleted and merged recordings
-never appear. When query embedding fails, search falls back to a
-case-insensitive keyword match and says so (`mode: keyword`, plus `reason`).
+never appear. When query embedding or the vector search fails (an index
+being rebuilt, say), search falls back to a case-insensitive keyword match
+and says so (`mode: keyword`, plus `reason`).
 
 ## Filters
 

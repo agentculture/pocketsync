@@ -6,11 +6,11 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from pocketsync import vindex
 from pocketsync.cli._errors import EXIT_USER_ERROR, CliError
+from pocketsync.recall.read import bounds
 from pocketsync.sinks.mongo import (
     ENRICHMENT_DONE,
     ENRICHMENT_ERROR,
@@ -24,22 +24,11 @@ from pocketsync.sinks.mongo import (
 STATUSES = (ENRICHMENT_PENDING, ENRICHMENT_DONE, ENRICHMENT_ERROR)
 ONLY_MODES = {None: MODE_FULL, "all": MODE_FULL, "classify": MODE_CLASSIFY, "embed": MODE_EMBED}
 _CALLS_PER_DOC = {MODE_FULL: 2, MODE_CLASSIFY: 1, MODE_EMBED: 1}
-_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}T[\d:.+\-Zz]+$")
 _PATH_LABELS = "enrichment.labels"
 
 
 def _err(message: str, remediation: str) -> CliError:
     return CliError(EXIT_USER_ERROR, message, remediation)
-
-
-def _check_date(name: str, value: str) -> str:
-    if not (_DATE.match(value) or _ISO.match(value)):
-        raise _err(
-            f"invalid --{name} {value!r}",
-            f"use YYYY-MM-DD or a full ISO timestamp, e.g. --{name} 2026-05-01",
-        )
-    return value
 
 
 def plan_enrich(
@@ -57,9 +46,10 @@ def plan_enrich(
     """Select recordings to re-enrich; write nothing unless ``apply`` is true.
 
     Selectors (at least one required; they combine with AND): ``all``, ``since`` /
-    ``until`` (on ``recording_at``; a date-only value is compared by its date prefix,
-    ``until`` inclusive of that whole day), ``ids``, ``label`` (in ``enrichment.labels``)
-    and ``status`` (pending, done or error). Docs deleted in Pocket are never selected.
+    ``until`` (on ``recording_at``, parsed exactly as the read verbs parse them, by
+    :func:`pocketsync.recall.read.bounds`; a date ``until`` includes that whole day),
+    ``ids``, ``label`` (in ``enrichment.labels``) and ``status`` (pending, done or error).
+    Docs deleted in Pocket or merged into another recording are never selected.
 
     ``only`` picks the mode: None or "all" -> full, "classify", "embed".
 
@@ -82,13 +72,8 @@ def plan_enrich(
         )
     mode = ONLY_MODES[only]
 
-    query: dict[str, Any] = {vindex.PATH_DELETED: {"$ne": True}}
-    rng: dict[str, str] = {}
-    if since:
-        rng["$gte"] = _check_date("since", since)
-    if until:
-        end = _check_date("until", until)
-        rng["$lte"] = end + "\uffff" if _DATE.match(end) else end
+    query: dict[str, Any] = {vindex.PATH_DELETED: {"$ne": True}, "merged_into": None}
+    rng = bounds(since or None, until or None, flag="--")
     if rng:
         query[vindex.PATH_RECORDING_AT] = rng
     if ids:

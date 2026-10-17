@@ -215,3 +215,45 @@ def test_stale_index_is_recreated_when_in_place_update_is_rejected():
     assert [m["name"] for m in col.created] == [vindex.SUMMARY_INDEX]
     summary = next(i for i in col.indexes if i["name"] == vindex.SUMMARY_INDEX)
     assert vindex.PATH_SENSITIVE in {f["path"] for f in summary["latestDefinition"]["fields"]}
+
+
+class TransientUpdateStub(NoUpdateStub):
+    def update_search_index(self, name, definition):
+        raise TimeoutError("synthetic: network blip")
+
+
+def _stale_summary(col):
+    stale = {
+        "fields": [
+            f for f in vindex.summary_definition(4)["fields"] if f["path"] != vindex.PATH_SENSITIVE
+        ]
+    }
+    col.indexes = [
+        {"name": vindex.SUMMARY_INDEX, "latestDefinition": stale},
+        {"name": vindex.CHUNK_INDEX, "latestDefinition": vindex.chunk_definition(4)},
+    ]
+
+
+def test_transient_update_failure_keeps_the_index():
+    col = TransientUpdateStub()
+    _stale_summary(col)
+    with pytest.raises(TimeoutError):
+        vindex.ensure_index(col, "m", 4, sleep=lambda s: None)
+    assert col.dropped == []
+    assert col.created == []
+
+
+class SlowDropStub(NoUpdateStub):
+    def drop_search_index(self, name):
+        self.dropped.append(name)  # mongot keeps listing it while it drops
+
+
+def test_recreate_never_creates_over_an_index_still_dropping():
+    col = SlowDropStub()
+    _stale_summary(col)
+    waited = []
+    with pytest.raises(vindex.IndexStillDropping) as exc:
+        vindex.ensure_index(col, "m", 4, sleep=waited.append)
+    assert col.created == []
+    assert sum(waited) == pytest.approx(vindex.RECREATE_WAIT_SECONDS)
+    assert vindex.SUMMARY_INDEX in str(exc.value)

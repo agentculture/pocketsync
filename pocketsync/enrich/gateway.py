@@ -15,12 +15,13 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from pocketsync.cli._errors import EXIT_ENV_ERROR, CliError
+from pocketsync.config import DEFAULT_CHAT_MODEL
 
 DEFAULT_GATEWAY_URL = "http://localhost:8001/v1"
 EMBED_MODEL = "gemma2-embed"
 EMBED_DIMS = 768
 DECIDER_MODEL = "decider:general"
-CHAT_MODEL = "unsloth/Qwen3.8-27B-NVFP4"
+CHAT_MODEL = DEFAULT_CHAT_MODEL  # one source: POCKETSYNC_CHAT_MODEL's default in config
 DEFAULT_CHAT_MAX_TOKENS = 1024
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
 DEFAULT_TIMEOUT = 60.0

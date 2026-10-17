@@ -135,3 +135,21 @@ def test_apply_nothing_selected(store):
     res = plan_enrich(store, label="nolabel", apply=True)
     assert res["count"] == 0
     assert res["updated"] == 0
+
+
+def test_merged_recordings_are_not_selected(store, db):
+    db[vindex.COLLECTION].update_one({"_id": "b"}, {"$set": {"merged_into": "a"}})
+    assert ids(plan_enrich(store, all=True)) == ["a", "c"]
+
+
+def test_dates_mean_the_same_as_in_the_read_verbs(store):
+    from pocketsync.recall.read import list_recordings
+
+    for kw in (
+        {"until": "2026-02-10"},
+        {"since": "20260210"},
+        {"since": "2026-02-10 10:00:01"},
+        {"until": "2026-03-16T01:00+02:00"},
+    ):
+        listed = sorted(r["id"] for r in list_recordings(store, **kw)["recordings"])
+        assert ids(plan_enrich(store, **kw)) == listed, kw

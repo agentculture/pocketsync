@@ -108,7 +108,8 @@ sent singular or plural (`label` or `labels`, `id` or `ids`); sending both spell
 ```
 
 The response is the `search` verb's output. `mode` is `vector`, or `keyword`
-together with a `reason` when query embedding is down.
+together with a `reason` when query embedding or the vector search itself
+fails (for example while an index is being rebuilt).
 
 ```json
 {"mode": "vector", "query": "pricing decision", "count": 1, "results": [
@@ -147,7 +148,10 @@ The response:
 ```
 
 - `citations` lists only sources the answer actually cites, in `n` order. The
-  server drops any `[k]` in the answer that names no source.
+  server drops any `[k]` (k up to 99) in the answer that names no source; a
+  larger bracketed number such as `[2025]` is plain text and is kept. `[k]`
+  markers in earlier assistant turns of `history` are removed before they are
+  sent to the model, since they named that turn's sources.
 - With zero retrieval hits there is no model call. The response is
   `{"answer": "", "citations": [], "retrieval": {"mode": ..., "count": 0}}`,
   and the page says nothing matched.

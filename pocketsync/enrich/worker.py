@@ -45,8 +45,12 @@ Decisions (documented, see the plan's c26/h23/c48/h31/c44):
   ``chunks == []`` and no ``summary_vector``; the gateway is not called.
 * **Missing parts.** No summary -> no ``summary_vector``; no transcript -> ``chunks == []``;
   classification uses whatever text exists (summary first, then transcript, truncated).
-* **Taxonomy change (c44).** :func:`mark_for_reclassification` flips ``done`` docs whose
-  ``enrichment.taxonomy_version`` differs back to ``pending``.
+* **Taxonomy change (c44).** :func:`mark_for_reclassification` re-queues ``done`` docs whose
+  ``enrichment.taxonomy_version`` differs through :meth:`MongoSink.requeue` in ``classify``
+  mode: no embed call, and the generation bump stops an in-flight run writing old labels.
+* **Retry schedule.** An in-memory ``_retry`` entry lives only while its doc is deferred:
+  any finished outcome (done, error, stale) drops it, and a doc no longer ``pending`` (or
+  deleted) is pruned when the held docs are re-read, so the schedule never grows unbounded.
 """
 
 from __future__ import annotations
@@ -69,7 +73,6 @@ from pocketsync.sinks.mongo import (
     MODE_CLASSIFY,
     MODE_EMBED,
     MODE_FULL,
-    PATH_ENRICHMENT_ATTEMPTS,
     PATH_ENRICHMENT_STATUS,
     MongoSink,
 )
@@ -91,19 +94,19 @@ def _now_iso() -> str:
 
 
 def mark_for_reclassification(store: MongoSink, current_taxonomy_version: str) -> int:
-    """Set ``done`` docs classified under a different taxonomy back to ``pending``; return count.
+    """Re-queue ``done`` docs classified under a different taxonomy (classify only); count.
 
     Docs with no text are ``done`` without ever being classified (no ``taxonomy_version``),
     so they are left alone rather than re-queued on every call.
     """
-    res = store.collection.update_many(
+    stale = store.collection.find(
         {
             PATH_ENRICHMENT_STATUS: ENRICHMENT_DONE,
             PATH_TAXONOMY_VERSION: {"$exists": True, "$ne": current_taxonomy_version},
         },
-        {"$set": {PATH_ENRICHMENT_STATUS: ENRICHMENT_PENDING, PATH_ENRICHMENT_ATTEMPTS: 0}},
+        {"_id": 1},
     )
-    return int(res.modified_count)
+    return store.requeue([d["_id"] for d in stale], MODE_CLASSIFY)
 
 
 def _file_paths(files: dict[str, Any] | None) -> dict[str, str]:
@@ -176,6 +179,10 @@ class EnrichmentWorker:
             self._retry[rid] = (self._clock() + delay, failures, chash, gen)
         self.store.set_deferred(rid, chash, gen, exc.message, self._wall() + delay)
 
+    def _forget(self, rid: str) -> None:
+        with self._lock:
+            self._retry.pop(rid, None)
+
     def _next_attempt(self, d: dict[str, Any]) -> float | None:
         """When to retry a doc that just failed; None once the attempt cap is reached."""
         attempts = int((d.get("enrichment") or {}).get("attempts") or 0) + 1
@@ -209,6 +216,11 @@ class EnrichmentWorker:
                 }
             )
         )
+        gone = set(ids) - {d["_id"] for d in out}
+        if gone:  # no longer pending (done elsewhere, errored, deleted): stop tracking them
+            with self._lock:
+                for rid in gone:
+                    self._retry.pop(rid, None)
         for d in out:
             enr = d.get("enrichment")
             if not isinstance(enr, dict):
@@ -277,11 +289,13 @@ class EnrichmentWorker:
             self._defer(d, gen, exc)
             return "unavailable"
         except CliError as exc:
+            self._forget(rid)
             ok = self.store.set_enrichment_error(
                 rid, chash, exc.message, self._next_attempt(d), expected_generation=gen
             )
             return "errors" if ok else "stale"
         if not self.store.set_enrichment(rid, chash, payload, expected_generation=gen):
+            self._forget(rid)
             return "stale"
         prev_labels = stored.get("labels")
         labels = payload.get("labels", prev_labels or [])

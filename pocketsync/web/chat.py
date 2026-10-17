@@ -13,7 +13,11 @@ Containment (the retrieved speech is untrusted and could carry instructions):
   only thing the server does with that text is validate its ``[k]`` markers;
 * a marker that names no retrieved source is dropped, and the kept ones are renumbered in
   order of first use, so every citation the page shows is a retrieved chunk with its real
-  recording id and ``start``/``end``.
+  recording id and ``start``/``end``. A bracketed number above :data:`MARKER_MAX` (a
+  year such as ``[2025]``) is not a marker at all and is left as text; it cannot collide
+  with a renumbered marker, which is at most ``MAX_SOURCES``;
+* earlier assistant answers in ``history`` lose their ``[k]`` markers before they are sent
+  back, because those numbers named the earlier turn's sources, not this turn's.
 
 With zero retrieval hits there is no model call. When the chat lane is down,
 :class:`ChatUnavailable` carries the retrieved sources so the server can still list them.
@@ -46,6 +50,8 @@ MAX_HISTORY = 6
 MAX_ANSWER_TOKENS = 1024
 MAX_QUESTION_CHARS = 4000
 MAX_HISTORY_CHARS = 4000
+#: Bracketed numbers up to this are citation markers (kept or dropped); larger ones are text.
+MARKER_MAX = 99
 
 _FIELDS = {"question", "history", "labels", "since", "until", "exclude_sensitive"}
 _ROLES = ("user", "assistant")
@@ -99,6 +105,15 @@ def _optional_str(body: dict[str, Any], name: str) -> str | None:
     return value
 
 
+def _unmark(text: str) -> str:
+    """``text`` without source markers (numbers up to MARKER_MAX); others stay as text."""
+    return _MARKER.sub(lambda m: "" if _is_marker(m) else m.group(0), text)
+
+
+def _is_marker(match: re.Match[str]) -> bool:
+    return all(int(raw) <= MARKER_MAX for raw in match.group(1).split(","))
+
+
 def _history(value: Any) -> list[dict[str, str]]:
     if value is None:
         return []
@@ -111,6 +126,8 @@ def _history(value: Any) -> list[dict[str, str]]:
         content = turn.get("content")
         if not isinstance(content, str):
             raise _bad("chat: history content must be a string", "fix history")
+        if turn["role"] == "assistant":
+            content = _unmark(content)
         turns.append({"role": turn["role"], "content": content[:MAX_HISTORY_CHARS]})
     return turns[-MAX_HISTORY:]
 
@@ -251,6 +268,8 @@ def cite(text: str, sources: list[dict[str, Any]]) -> tuple[str, list[dict[str, 
     order: dict[int, int] = {}  # source number -> new number
 
     def repl(match: re.Match[str]) -> str:
+        if not _is_marker(match):
+            return match.group(0)  # e.g. a year: never a source number
         kept = []
         for raw in match.group(1).split(","):
             k = int(raw)

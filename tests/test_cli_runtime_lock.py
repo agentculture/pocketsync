@@ -33,3 +33,24 @@ def test_once_builds_a_single_object_under_concurrency():
 def test_once_is_reentrant():
     rt = _runtime.Runtime(Settings())
     assert rt._once("outer", lambda: rt._once("inner", lambda: 41) + 1) == 42
+
+
+def test_a_slow_build_does_not_block_other_accessors():
+    rt = _runtime.Runtime(Settings())
+    rt._once("ready", lambda: "cached")
+    started, release = threading.Event(), threading.Event()
+
+    def slow():
+        started.set()
+        release.wait(5)
+        return "slow"
+
+    t = threading.Thread(target=lambda: rt._once("slow", slow))
+    t.start()
+    started.wait(5)
+    t0 = time.monotonic()
+    assert rt._once("ready", lambda: "rebuilt") == "cached"
+    assert rt._once("other", lambda: "fresh") == "fresh"
+    assert time.monotonic() - t0 < 1.0
+    release.set()
+    t.join()

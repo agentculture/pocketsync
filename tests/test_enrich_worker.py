@@ -589,3 +589,47 @@ def test_content_change_emits_enriched_not_reclassified(store, outbox):
     store.put_recording(rec(summary="new summary"))
     EnrichmentWorker(store, LabelGateway(labels=["call"]), outbox).run_once()
     assert [x["type"] for x in events(outbox)] == ["pocketsync.recording.enriched"] * 2
+
+
+def test_taxonomy_change_reclassifies_without_embedding(store, outbox):
+    store.put_recording(rec("r1"))
+    EnrichmentWorker(store, FakeGateway(tax="tax-old"), outbox).run_once()
+    gen = doc(store)["enrichment"].get("generation") or 0
+    gw = FakeGateway(tax=TAX)
+    w = EnrichmentWorker(store, gw, outbox)
+    assert w.reclassify_stale(TAX) == 1
+    e = doc(store)["enrichment"]
+    assert (e["mode"], e["generation"]) == ("classify", gen + 1)
+    w.run_once()
+    assert gw.embed_inputs == []
+    assert doc(store)["enrichment"]["taxonomy_version"] == TAX
+
+
+def test_retry_schedule_forgets_docs_that_leave_the_deferral(store, outbox):
+    store.put_recording(rec("r1"))
+    clock = Clock()
+
+    class DownThenBroken(FakeGateway):
+        def embed(self, texts):
+            if self.calls == 0:
+                self.calls += 1
+                raise EnrichmentUnavailable("503")
+            raise CliError(2, "bad vectors", "check model")
+
+    w = EnrichmentWorker(store, DownThenBroken(), outbox, clock=clock, wall_clock=clock)
+    w.run_once()
+    assert "r1" in w._retry
+    clock.t += 3600
+    assert w.run_once()["errors"] == 1
+    assert w._retry == {}
+
+
+def test_held_pending_prunes_docs_no_longer_pending(store, outbox):
+    store.put_recording(rec("r1"))
+    clock = Clock()
+    w = EnrichmentWorker(store, FakeGateway(fail_first=1), outbox, clock=clock, wall_clock=clock)
+    w.run_once()
+    assert "r1" in w._retry
+    store.tombstone("r1", "2026-05-02T00:00:00Z")
+    w.run_once()
+    assert w._retry == {}

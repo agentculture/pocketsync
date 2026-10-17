@@ -111,3 +111,10 @@ def test_chat_unreachable():
     unreachable = GatewayClient("http://127.0.0.1:1/v1", timeout=1)
     with pytest.raises(EnrichmentUnavailable):
         unreachable.chat(MSGS)
+
+
+def test_default_chat_model_has_one_source():
+    from pocketsync import config
+    from pocketsync.enrich import gateway
+
+    assert gateway.CHAT_MODEL is config.DEFAULT_CHAT_MODEL

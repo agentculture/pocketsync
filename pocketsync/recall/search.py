@@ -24,9 +24,12 @@ its best-matching chunks, ranked by a local cosine between the query vector and 
 stored chunk vectors, with ``start``/``end`` offsets. Vectors are never returned.
 
 When embedding fails (:class:`~pocketsync.enrich.gateway.EnrichmentUnavailable` or any
-other gateway :class:`CliError`), search degrades to a case-insensitive keyword match
-over title, summary and chunk text with the same recording-level filters and reports
-``mode: "keyword"`` plus the ``reason``.
+other gateway :class:`CliError`), or the ``$vectorSearch`` stage itself fails (an index that
+is missing, being rebuilt, or lacks a filter field because ``pocketsync web`` started before
+``serve`` updated it), search degrades to a case-insensitive keyword match over title,
+summary and chunk text with the same recording-level filters and reports
+``mode: "keyword"`` plus the ``reason``. A search-stage failure is reported by exception
+type only, so the reason never quotes a server message.
 """
 
 from __future__ import annotations
@@ -206,6 +209,26 @@ def _keyword_search(
     return [_result(d, float(total), ch) for total, _, d, ch in scored[:limit]]
 
 
+def _keyword_result(
+    col: Any,
+    text: str,
+    post: dict[str, Any],
+    limit: int,
+    chunks_per_result: int,
+    detail: str,
+    stage: str,
+) -> dict[str, Any]:
+    results = _keyword_search(col, text, post, limit, chunks_per_result)
+    what = "query embedding" if stage == "embed" else "vector search"
+    return {
+        "mode": MODE_KEYWORD,
+        "reason": f"{what} failed: {detail}",
+        "query": text,
+        "count": len(results),
+        "results": results,
+    }
+
+
 def search(
     store: Any,
     gateway: Any,
@@ -243,16 +266,14 @@ def search(
     try:
         qvec = gateway.embed([text], prompt_name=QUERY_PROMPT)[0]
     except CliError as exc:  # EnrichmentUnavailable is a CliError
-        results = _keyword_search(col, text, post, limit, chunks_per_result)
-        return {
-            "mode": MODE_KEYWORD,
-            "reason": f"query embedding failed: {exc.message}",
-            "query": text,
-            "count": len(results),
-            "results": results,
-        }
+        return _keyword_result(col, text, post, limit, chunks_per_result, exc.message, "embed")
     vflt = vector_filter(labels, has_action_items, threshold)
-    results = _vector_search(
-        col, qvec, vflt, post, limit, chunks_per_result, search_fn or _default_search
-    )
+    try:
+        results = _vector_search(
+            col, qvec, vflt, post, limit, chunks_per_result, search_fn or _default_search
+        )
+    except Exception as exc:  # noqa: BLE001 - e.g. pymongo OperationFailure mid-index-rebuild
+        return _keyword_result(
+            col, text, post, limit, chunks_per_result, type(exc).__name__, "search"
+        )
     return {"mode": MODE_VECTOR, "query": text, "count": len(results), "results": results}
