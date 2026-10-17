@@ -2,7 +2,7 @@
   "plan_slug": "talk-to-recordings",
   "schema_version": 2,
   "created": "2026-10-16T12:46:49Z",
-  "updated": "2026-10-17T04:31:50Z",
+  "updated": "2026-10-17T04:36:29Z",
   "deviations": [
     {
       "id": "d1",
@@ -1721,7 +1721,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 91
     },
@@ -1740,7 +1740,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 92
     },
@@ -1759,7 +1759,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 93
     },
@@ -1778,7 +1778,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 94
     },
@@ -1797,7 +1797,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 95
     },
@@ -1816,7 +1816,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 96
     },
@@ -1835,7 +1835,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 97
     },
@@ -1854,7 +1854,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 98
     },
@@ -1873,7 +1873,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 99
     },
@@ -1892,7 +1892,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 100
     },
@@ -1911,7 +1911,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 101
     },
@@ -1930,7 +1930,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 102
     },
@@ -1949,7 +1949,7 @@
         "commit": "40a5067"
       },
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false,
       "seq": 103
     },
@@ -2093,7 +2093,7 @@
         "e89"
       ],
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false
     },
     {
@@ -2108,7 +2108,7 @@
         "e91"
       ],
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false
     },
     {
@@ -2123,7 +2123,7 @@
         "e93"
       ],
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false
     },
     {
@@ -2137,7 +2137,7 @@
         "e94"
       ],
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false
     },
     {
@@ -2151,7 +2151,7 @@
         "e95"
       ],
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false
     },
     {
@@ -2166,7 +2166,7 @@
         "e97"
       ],
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false
     },
     {
@@ -2181,7 +2181,7 @@
         "e100"
       ],
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false
     },
     {
@@ -2195,7 +2195,7 @@
         "e101"
       ],
       "origin": "llm",
-      "status": "proposed",
+      "status": "approved",
       "superseded": false
     }
   ],
